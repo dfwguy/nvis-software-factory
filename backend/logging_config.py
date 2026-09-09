@@ -56,6 +56,9 @@ _PATTERNS: tuple[re.Pattern[str], ...] = (
         r"(?i)\b([a-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|credential|private[_-]?key)"
         r"[a-z0-9_.-]*)\b(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|\S+)"
     ),
+    # NOTE: the pattern above matches on the *name*, so `tokens=` trips it as readily as
+    # `api_token=`. A token count is not a credential, and _is_measurement below is what keeps
+    # `tokens=1200/340` readable in the logs.
     # Credentials embedded in a URL: scheme://user:pass@host
     re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://[^\s:/@]+:)([^\s@]+)(@)"),
     # PEM blocks, which are multi-line and unmistakable
@@ -63,13 +66,31 @@ _PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+#: Values that are plainly measurements rather than credentials: digits, with the separators a
+#: count or a ratio uses. Kept short, because a long digit string could be a credential and the
+#: cost of redacting one number is nothing next to leaking one key.
+_MEASUREMENT = re.compile(r"^[\d./:%-]{1,20}$")
+
+
+def _is_measurement(value: str) -> bool:
+    return bool(_MEASUREMENT.match(value.strip("\"'")))
+
+
 def redact(text: str) -> str:
     """Replace credential-shaped substrings, preserving the surrounding message."""
     if not text:
         return text
+
+    def _named(match: re.Match[str]) -> str:
+        # `tokens=1200/340` names a credential and holds a measurement. Redacting it costs the one
+        # number worth logging about a reasoning call and gains nothing.
+        if _is_measurement(match.group(3)):
+            return match.group(0)
+        return f"{match.group(1)}{match.group(2)}{_REDACTED}"
+
     result = text
     result = _PATTERNS[0].sub(lambda m: f"{m.group(1)}{m.group(2)} {_REDACTED}", result)
-    result = _PATTERNS[1].sub(lambda m: f"{m.group(1)}{m.group(2)}{_REDACTED}", result)
+    result = _PATTERNS[1].sub(_named, result)
     result = _PATTERNS[2].sub(lambda m: f"{m.group(1)}{_REDACTED}{m.group(3)}", result)
     result = _PATTERNS[3].sub(_REDACTED, result)
     return result
@@ -79,13 +100,29 @@ class RedactionFilter(logging.Filter):
     """Scrub credential-shaped text from the message and its arguments."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # Interpolate before redacting, never after.
+        #
+        # `record.msg` is a format template, and redacting it rewrites text that `%`-formatting
+        # still has to consume. `"llm: %s tokens=%d/%d in %dms"` has a credential-shaped name in
+        # it, so the value -- which is the placeholders -- was replaced wholesale, leaving three
+        # specifiers for five arguments and a TypeError inside logging itself. The record was
+        # dropped and the traceback pointed at the logging call rather than at this filter.
+        #
+        # Interpolating first also widens what gets caught: a secret split across the template and
+        # an argument is only credential-shaped once the two are joined.
+        if record.args:
+            try:
+                record.msg = record.getMessage()
+                record.args = ()
+            except (TypeError, ValueError):
+                # Malformed call; leave it for logging to report, and still scrub the parts.
+                if isinstance(record.args, dict):
+                    record.args = {k: self._scrub(v) for k, v in record.args.items()}
+                elif isinstance(record.args, tuple):
+                    record.args = tuple(self._scrub(a) for a in record.args)
+
         if isinstance(record.msg, str):
             record.msg = redact(record.msg)
-        if record.args:
-            if isinstance(record.args, dict):
-                record.args = {k: self._scrub(v) for k, v in record.args.items()}
-            elif isinstance(record.args, tuple):
-                record.args = tuple(self._scrub(a) for a in record.args)
         return True
 
     @staticmethod
