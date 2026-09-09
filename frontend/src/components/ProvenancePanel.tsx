@@ -150,7 +150,7 @@ function ProvenanceBody({ assessmentId }: { assessmentId: string }) {
                         <Box sx={{ py: 2 }}>
                           {call.error && (
                             <Text
-                              kind="body/regular/sm"
+                              kind="body/regular/md"
                               style={{ display: "block", marginBottom: 8 }}
                             >
                               {call.error}
@@ -170,7 +170,7 @@ function ProvenanceBody({ assessmentId }: { assessmentId: string }) {
                             </Box>
                           ) : (
                             <Text
-                              kind="body/regular/sm"
+                              kind="body/regular/md"
                               style={{ color: "var(--text-color-secondary)" }}
                             >
                               No raw response recorded for this call.
@@ -194,12 +194,12 @@ function Metric({ label, value, help }: { label: string; value: string; help?: s
   const body = (
     <Box>
       <Text
-        kind="body/regular/xs"
+        kind="body/regular/sm"
         style={{ color: "var(--text-color-secondary)", display: "block" }}
       >
         {label}
       </Text>
-      <Text kind="body/bold/sm">
+      <Text kind="body/bold/md">
         <span className="nvsf-code">{value}</span>
       </Text>
     </Box>

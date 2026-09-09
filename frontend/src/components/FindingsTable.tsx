@@ -50,7 +50,7 @@ function FindingRow({ finding }: { finding: Finding }) {
         }}
       >
         {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <Text kind="body/bold/sm" style={{ flexGrow: 1, textAlign: "left" }}>
+        <Text kind="body/bold/md" style={{ flexGrow: 1, textAlign: "left" }}>
           {finding.title}
         </Text>
         <OriginTag origin={finding.origin} escalatedFrom={finding.escalated_from} />
@@ -59,7 +59,7 @@ function FindingRow({ finding }: { finding: Finding }) {
 
       <Collapse in={open}>
         <Box sx={{ pt: 1.5, pl: 3, display: "grid", gap: 1.5 }}>
-          <Text kind="body/regular/sm">{finding.detail}</Text>
+          <Text kind="body/regular/md">{finding.detail}</Text>
 
           {/* The citation is what makes a finding checkable. A conclusion with no file:line is a
               conclusion the author has to take on trust, and the point of the deterministic layer
@@ -67,7 +67,7 @@ function FindingRow({ finding }: { finding: Finding }) {
           {finding.file_path && (
             <Box>
               <Text
-                kind="body/regular/xs"
+                kind="body/regular/sm"
                 style={{ color: "var(--text-color-secondary)", display: "block" }}
               >
                 Where
@@ -99,16 +99,16 @@ function FindingRow({ finding }: { finding: Finding }) {
           {finding.remediation && (
             <Box>
               <Text
-                kind="body/regular/xs"
+                kind="body/regular/sm"
                 style={{ color: "var(--text-color-secondary)", display: "block" }}
               >
                 What to do
               </Text>
-              <Text kind="body/regular/sm">{finding.remediation}</Text>
+              <Text kind="body/regular/md">{finding.remediation}</Text>
             </Box>
           )}
 
-          <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
             {pillarLabel(finding.pillar_id)}
             {finding.criterion ? ` · criterion ${finding.criterion}` : ""}
             {finding.detector ? ` · detected by ${finding.detector}` : ""}
@@ -123,7 +123,7 @@ export function FindingsTable({ findings }: { findings: Finding[] }) {
   if (!findings.length) {
     return (
       <Paper variant="outlined" sx={{ p: 3 }}>
-        <Text kind="body/regular/sm">
+        <Text kind="body/regular/md">
           No findings. That is a real result, not an empty page — the scanners ran and the model
           judged every pillar. Read the per-pillar verdicts above to see what was checked.
         </Text>

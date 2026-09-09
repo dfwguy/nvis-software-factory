@@ -81,7 +81,7 @@ export function RepositoryDetailView() {
 
       {repository.notes && (
         <Box sx={{ mb: 3 }}>
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             {repository.notes}
           </Text>
         </Box>

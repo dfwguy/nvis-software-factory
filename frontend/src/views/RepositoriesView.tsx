@@ -44,7 +44,7 @@ export function RepositoriesView() {
         </Box>
       ) : (
         <Box sx={{ mb: 3 }}>
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             You have read access. Starting an assessment needs the member role — ask in
             #nvis-software-factory to be added to the group.
           </Text>
@@ -117,7 +117,7 @@ export function RepositoriesView() {
           refreshes it belongs next to it. */}
       {data && data.total > data.repositories.length && (
         <Box sx={{ mt: 2 }}>
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             Showing {data.repositories.length} of {data.total}.{" "}
             <button type="button" onClick={refresh} style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>
               Refresh

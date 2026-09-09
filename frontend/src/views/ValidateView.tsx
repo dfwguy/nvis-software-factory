@@ -165,7 +165,7 @@ export function ValidateView() {
           <Button kind="primary" color="brand" onClick={() => void run()} disabled={busy || !text.trim()}>
             {busy ? "Checking…" : "Validate"}
           </Button>
-          <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
             Bodies over 16 MB are refused before they are parsed — split by rack or by entity.
           </Text>
         </Box>
@@ -185,12 +185,12 @@ function Verdict({ result }: { result: ValidationResult }) {
     <>
       <Box sx={{ mb: 2 }}>
         <Banner status={result.valid ? "success" : "error"}>
-          <Text kind="body/bold/sm" style={{ display: "block" }}>
+          <Text kind="body/bold/md" style={{ display: "block" }}>
             {result.valid
               ? "Conformant."
               : `${result.problem_count} problem${result.problem_count === 1 ? "" : "s"}.`}
           </Text>
-          <Text kind="body/regular/sm">
+          <Text kind="body/regular/md">
             {result.valid
               ? "This payload can be handed to any NVIS tool that consumes NRM."
               : "Passing the schema and failing the cross-record rules is the normal outcome of a first attempt — start at the top."}
@@ -201,7 +201,7 @@ function Verdict({ result }: { result: ValidationResult }) {
       {counts.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+            <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
               checked
             </Text>
             {counts.map(([collection, n]) => (
@@ -242,7 +242,7 @@ function Verdict({ result }: { result: ValidationResult }) {
                     <span className="nvsf-code">{problem.pointer || "(root)"}</span>
                   </TableCell>
                   <TableCell sx={{ verticalAlign: "top" }}>
-                    <Text kind="body/regular/sm">{problem.message}</Text>
+                    <Text kind="body/regular/md">{problem.message}</Text>
                   </TableCell>
                   <TableCell sx={{ verticalAlign: "top" }}>
                     <span className="nvsf-code">{problem.rule}</span>
@@ -253,7 +253,7 @@ function Verdict({ result }: { result: ValidationResult }) {
           </Table>
           {result.truncated && (
             <Box sx={{ p: 2 }}>
-              <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+              <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
                 The list is truncated. One systematic mistake produces one problem per record, so
                 fixing the first few usually clears most of what is left.
               </Text>

@@ -57,10 +57,10 @@ export function SectionHeading({
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Text kind="body/bold/lg">{title}</Text>
+        <Text kind="body/bold/xl">{title}</Text>
         {detail && (
           <Text
-            kind="body/regular/sm"
+            kind="body/regular/md"
             style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
           >
             {detail}
@@ -129,11 +129,11 @@ export function WarningBanner({ children }: { children: ReactNode }) {
 export function EmptyState({ message, hint }: { message: string; hint: ReactNode }) {
   return (
     <Box sx={{ textAlign: "center", py: 6, px: 2 }}>
-      <Text kind="body/bold/md" style={{ display: "block" }}>
+      <Text kind="body/bold/lg" style={{ display: "block" }}>
         {message}
       </Text>
       <Text
-        kind="body/regular/sm"
+        kind="body/regular/md"
         style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 8 }}
       >
         {hint}

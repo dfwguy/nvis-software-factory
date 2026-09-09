@@ -194,10 +194,10 @@ export function MappingAssistantView() {
       {unavailable && (
         <Box sx={{ mb: 2 }}>
           <Banner status="warning">
-            <Text kind="body/bold/sm" style={{ display: "block" }}>
+            <Text kind="body/bold/md" style={{ display: "block" }}>
               The reasoning endpoint is unreachable.
             </Text>
-            <Text kind="body/regular/sm">
+            <Text kind="body/regular/md">
               {unavailable} There is deliberately no keyword-matching fallback: it would produce a
               plausible-looking crosswalk with no reasoning behind it, and you would have no way to
               tell the difference. The{" "}
@@ -224,14 +224,14 @@ function Proposal({ result }: { result: MappingProposal }) {
     <>
       <Box sx={{ mb: 2 }}>
         <Banner status={verdict.valid ? "success" : "error"}>
-          <Text kind="body/bold/sm" style={{ display: "block" }}>
+          <Text kind="body/bold/md" style={{ display: "block" }}>
             {verdict.valid
               ? `The worked example is conformant as a ${result.entity} record.`
               : `The worked example is NOT conformant: ${verdict.problem_count} problem${
                   verdict.problem_count === 1 ? "" : "s"
                 }.`}
           </Text>
-          <Text kind="body/regular/sm">
+          <Text kind="body/regular/md">
             This is the verdict that counts. It comes from the same validator any NVIS tool would
             run against your output.
           </Text>
@@ -254,7 +254,7 @@ function Proposal({ result }: { result: MappingProposal }) {
                     <span className="nvsf-code">{problem.pointer || "(root)"}</span>
                   </TableCell>
                   <TableCell>
-                    <Text kind="body/regular/sm">{problem.message}</Text>
+                    <Text kind="body/regular/md">{problem.message}</Text>
                   </TableCell>
                 </TableRow>
               ))}
@@ -272,14 +272,14 @@ function Proposal({ result }: { result: MappingProposal }) {
               </Tag>
             </span>
           </Tooltip>
-          <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
             {result.provenance.model} · prompt {result.provenance.prompt_version} · temperature{" "}
             {result.provenance.temperature}
           </Text>
         </Box>
         {result.model_confidence_reason && (
           <Text
-            kind="body/regular/sm"
+            kind="body/regular/md"
             style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 8 }}
           >
             {result.model_confidence_reason}
@@ -312,7 +312,7 @@ function Proposal({ result }: { result: MappingProposal }) {
                 </TableCell>
                 <TableCell>{mapping.transform ?? "—"}</TableCell>
                 <TableCell>
-                  <Text kind="body/regular/sm">{mapping.reasoning}</Text>
+                  <Text kind="body/regular/md">{mapping.reasoning}</Text>
                 </TableCell>
               </TableRow>
             ))}
@@ -322,34 +322,34 @@ function Proposal({ result }: { result: MappingProposal }) {
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { md: "1fr 1fr" }, mb: 3 }}>
         <Paper variant="outlined" sx={{ p: 2.5 }}>
-          <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 8 }}>
+          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
             Your fields with nowhere to go ({unmapped.length})
           </Text>
           {unmapped.length ? (
             unmapped.map((item, index) => (
-              <Text key={index} kind="body/regular/sm" style={{ display: "block" }}>
+              <Text key={index} kind="body/regular/md" style={{ display: "block" }}>
                 {item}
               </Text>
             ))
           ) : (
-            <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+            <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
               Everything in the sample was mapped. Anything the contract does not model has a home
               in <span className="nvsf-code">attributes</span>.
             </Text>
           )}
         </Paper>
         <Paper variant="outlined" sx={{ p: 2.5 }}>
-          <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 8 }}>
+          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
             NRM fields your export cannot fill ({unfilled.length})
           </Text>
           {unfilled.length ? (
             unfilled.map((item, index) => (
-              <Text key={index} kind="body/regular/sm" style={{ display: "block" }}>
+              <Text key={index} kind="body/regular/md" style={{ display: "block" }}>
                 {item}
               </Text>
             ))
           ) : (
-            <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+            <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
               Nothing missing.
             </Text>
           )}
@@ -361,7 +361,7 @@ function Proposal({ result }: { result: MappingProposal }) {
           <Box
             sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}
           >
-            <Text kind="body/bold/sm">The worked example that was adjudicated</Text>
+            <Text kind="body/bold/md">The worked example that was adjudicated</Text>
             <CopyButton text={JSON.stringify(result.record, null, 2)} />
           </Box>
           <Box sx={{ bgcolor: "action.hover", p: 2, borderRadius: 1, maxHeight: 420, overflow: "auto" }}>

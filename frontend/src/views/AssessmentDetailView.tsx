@@ -136,11 +136,11 @@ export function AssessmentDetailView() {
       {assessment.status === "failed" && assessment.failure && (
         <Box sx={{ mb: 3 }}>
           <Banner status="error">
-            <Text kind="body/bold/sm" style={{ display: "block" }}>
+            <Text kind="body/bold/md" style={{ display: "block" }}>
               {assessment.failure.reason}
             </Text>
-            <Text kind="body/regular/sm">{assessment.failure.detail}</Text>
-            <Text kind="body/regular/sm" style={{ display: "block", marginTop: 8 }}>
+            <Text kind="body/regular/md">{assessment.failure.detail}</Text>
+            <Text kind="body/regular/md" style={{ display: "block", marginTop: 8 }}>
               {assessment.failure.retryable
                 ? "Retryable. A retry resumes from the last completed reasoning pass rather than starting over."
                 : "Not retryable — retrying would fail the same way. Fix the cause named above first."}
@@ -171,12 +171,12 @@ export function AssessmentDetailView() {
               </Tag>
             )}
             <Box sx={{ flexGrow: 1, minWidth: 260 }}>
-              <Text kind="body/bold/md" style={{ display: "block" }}>
+              <Text kind="body/bold/lg" style={{ display: "block" }}>
                 {remediation.headline ?? "No headline was produced."}
               </Text>
               {remediation.posture_reason && (
                 <Text
-                  kind="body/regular/sm"
+                  kind="body/regular/md"
                   style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
                 >
                   {remediation.posture_reason}
@@ -191,11 +191,11 @@ export function AssessmentDetailView() {
       {/* ── The deliverable ───────────────────────────────────────────────────────────── */}
       {artifacts.length > 0 && (
         <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
-          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 4 }}>
+          <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 4 }}>
             Documents
           </Text>
           <Text
-            kind="body/regular/sm"
+            kind="body/regular/md"
             style={{ color: "var(--text-color-secondary)", display: "block", marginBottom: 12 }}
           >
             AGENT_PLAN.md is the one to hand to a coding agent. ASSESSMENT.md is for a human
@@ -220,10 +220,10 @@ export function AssessmentDetailView() {
           <Box
             sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center", mb: 1 }}
           >
-            <Text kind="body/bold/md">Paste this at the top of your agent session</Text>
+            <Text kind="body/bold/lg">Paste this at the top of your agent session</Text>
             <CopyButton text={remediation.agent_preamble} label="Copy preamble" />
           </Box>
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             It tells the agent what this repository is, what matters about it, and the constraints
             to respect while changing it — the context an agent otherwise guesses at.
           </Text>
@@ -283,16 +283,16 @@ function ProgressPanel({ detail }: { detail: AssessmentDetail }) {
   return (
     <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mb: 1 }}>
-        <Text kind="body/bold/sm">{progress.stage}</Text>
+        <Text kind="body/bold/md">{progress.stage}</Text>
         {progress.passes_total > 0 && (
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             reasoning pass {progress.passes_done} of {progress.passes_total}
           </Text>
         )}
       </Box>
       {progress.detail && (
         <Text
-          kind="body/regular/sm"
+          kind="body/regular/md"
           style={{ color: "var(--text-color-secondary)", display: "block", marginBottom: 8 }}
         >
           {progress.detail}
@@ -329,7 +329,7 @@ function Step({ step }: { step: RemediationStep }) {
   return (
     <Box sx={{ borderBottom: 1, borderColor: "divider", py: 2 }}>
       <Box sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-        <Text kind="body/bold/sm">{step.title}</Text>
+        <Text kind="body/bold/md">{step.title}</Text>
         {step.effort && (
           <Tag color="gray" kind="outline" readOnly density="compact">
             {step.effort}
@@ -337,13 +337,13 @@ function Step({ step }: { step: RemediationStep }) {
         )}
       </Box>
       {step.why && (
-        <Text kind="body/regular/sm" style={{ display: "block", marginTop: 4 }}>
+        <Text kind="body/regular/md" style={{ display: "block", marginTop: 4 }}>
           {step.why}
         </Text>
       )}
       {step.where && (
         <Text
-          kind="body/regular/xs"
+          kind="body/regular/sm"
           style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
         >
           <span className="nvsf-code">{step.where}</span>
@@ -358,10 +358,10 @@ function Step({ step }: { step: RemediationStep }) {
           it is a task with a definition of done. */}
       {step.verify && (
         <Box sx={{ mt: 1, pl: 2, borderLeft: 3, borderColor: "primary.main" }}>
-          <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)", display: "block" }}>
+          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)", display: "block" }}>
             Verify
           </Text>
-          <Text kind="body/regular/sm">{step.verify}</Text>
+          <Text kind="body/regular/md">{step.verify}</Text>
         </Box>
       )}
     </Box>
@@ -381,10 +381,10 @@ function RemediationPlan({ remediation }: { remediation: NonNullable<AssessmentD
       {groups.map(([title, blurb, steps]) =>
         steps?.length ? (
           <Paper key={title} variant="outlined" sx={{ p: 3, mb: 2 }}>
-            <Text kind="body/bold/md" style={{ display: "block" }}>
+            <Text kind="body/bold/lg" style={{ display: "block" }}>
               {title}
             </Text>
-            <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+            <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
               {blurb}
             </Text>
             {steps.map((step, index) => (
@@ -398,15 +398,15 @@ function RemediationPlan({ remediation }: { remediation: NonNullable<AssessmentD
           never produce: plausible changes that would be wrong for THIS repository. */}
       {remediation.do_not_do?.length ? (
         <Paper variant="outlined" sx={{ p: 3 }}>
-          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
+          <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 8 }}>
             Do not do these
           </Text>
           {remediation.do_not_do.map((entry, index) => (
             <Box key={index} sx={{ mb: 1.5 }}>
-              <Text kind="body/bold/sm" style={{ display: "block" }}>
+              <Text kind="body/bold/md" style={{ display: "block" }}>
                 {entry.suggestion}
               </Text>
-              <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+              <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
                 {entry.why_not}
               </Text>
             </Box>
@@ -429,21 +429,21 @@ function PillarJudgement({ pillarId, judgement }: { pillarId: string; judgement:
         onClick={() => setOpen((value) => !value)}
       >
         <VerdictTag verdict={judgement.verdict} />
-        <Text kind="body/bold/sm" style={{ flexGrow: 1 }}>
+        <Text kind="body/bold/md" style={{ flexGrow: 1 }}>
           {pillarLabel(pillarId)}
         </Text>
         {outcomes.length > 0 && (
-          <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
             {failed} of {outcomes.length} criteria failing
           </Text>
         )}
         <Link to={pillarPath(pillarId)} onClick={(event) => event.stopPropagation()}>
-          <Text kind="body/regular/xs">what good looks like</Text>
+          <Text kind="body/regular/sm">what good looks like</Text>
         </Link>
       </Box>
 
       {judgement.summary && (
-        <Text kind="body/regular/sm" style={{ display: "block", marginTop: 8 }}>
+        <Text kind="body/regular/md" style={{ display: "block", marginTop: 8 }}>
           {judgement.summary}
         </Text>
       )}
@@ -467,13 +467,13 @@ function CriteriaDetail({
     <Box sx={{ mt: 2, display: "grid", gap: 1.5 }}>
       {outcomes.map((criterion, index) => (
         <Box key={index} sx={{ pl: 2, borderLeft: 2, borderColor: "divider" }}>
-          <Text kind="body/bold/xs" style={{ display: "block" }}>
+          <Text kind="body/bold/sm" style={{ display: "block" }}>
             {criterion.id} — {criterion.outcome}
           </Text>
-          <Text kind="body/regular/sm">{criterion.reasoning}</Text>
+          <Text kind="body/regular/md">{criterion.reasoning}</Text>
           {criterion.evidence && (
             <Text
-              kind="body/regular/xs"
+              kind="body/regular/sm"
               style={{ color: "var(--text-color-secondary)", display: "block" }}
             >
               <span className="nvsf-code">{criterion.evidence}</span>
@@ -487,11 +487,11 @@ function CriteriaDetail({
           saying so. It does not remove the finding -- the ratchet forbids that -- it annotates it. */}
       {judgement.suspected_false_positives?.length ? (
         <Box sx={{ mt: 1 }}>
-          <Text kind="body/bold/xs" style={{ display: "block" }}>
+          <Text kind="body/bold/sm" style={{ display: "block" }}>
             The model thinks these findings may be wrong
           </Text>
           {judgement.suspected_false_positives.map((entry, index) => (
-            <Text key={index} kind="body/regular/sm" style={{ display: "block" }}>
+            <Text key={index} kind="body/regular/md" style={{ display: "block" }}>
               {entry.finding_title}: {entry.why}
             </Text>
           ))}
@@ -520,15 +520,15 @@ function OpenQuestionsPanel({
         <Paper variant="outlined" sx={{ p: 3, mb: 2 }}>
           {list.map((entry, index) => (
             <Box key={index} sx={{ mb: 2 }}>
-              <Text kind="body/bold/sm" style={{ display: "block" }}>
+              <Text kind="body/bold/md" style={{ display: "block" }}>
                 {entry.question}
               </Text>
-              <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+              <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
                 {entry.why_it_matters}
               </Text>
               <Box sx={{ mt: 0.5, display: "grid", gap: 0.25 }}>
-                {entry.if_yes && <Text kind="body/regular/xs">If yes: {entry.if_yes}</Text>}
-                {entry.if_no && <Text kind="body/regular/xs">If no: {entry.if_no}</Text>}
+                {entry.if_yes && <Text kind="body/regular/sm">If yes: {entry.if_yes}</Text>}
+                {entry.if_no && <Text kind="body/regular/sm">If no: {entry.if_no}</Text>}
               </Box>
             </Box>
           ))}
@@ -536,19 +536,19 @@ function OpenQuestionsPanel({
       )}
       {assumptions.length > 0 && (
         <Paper variant="outlined" sx={{ p: 3 }}>
-          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
+          <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 8 }}>
             Assumptions this assessment made
           </Text>
           {assumptions.map((entry, index) => (
             <Box key={index} sx={{ mb: 1.5 }}>
-              <Text kind="body/bold/sm" style={{ display: "block" }}>
+              <Text kind="body/bold/md" style={{ display: "block" }}>
                 {entry.assumption}
               </Text>
-              <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+              <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
                 {entry.chosen_because}
               </Text>
               {entry.if_wrong && (
-                <Text kind="body/regular/xs" style={{ display: "block" }}>
+                <Text kind="body/regular/sm" style={{ display: "block" }}>
                   If wrong: {entry.if_wrong}
                 </Text>
               )}
@@ -572,7 +572,7 @@ function ArchitecturePanel({
         detail="Described from the evidence alone, before anything was judged. If this disagrees with what you expected, the disagreement is itself a finding."
       />
       <Paper variant="outlined" sx={{ p: 3 }}>
-        {architecture.purpose && <Text kind="body/regular/sm">{architecture.purpose}</Text>}
+        {architecture.purpose && <Text kind="body/regular/md">{architecture.purpose}</Text>}
 
         <Box sx={{ display: "grid", gap: 2, mt: 2 }}>
           {architecture.archetype && (
@@ -605,13 +605,13 @@ function ArchitecturePanel({
             statement about something the scanners never saw. */}
         {architecture.not_determinable?.length ? (
           <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: "divider" }}>
-            <Text kind="body/bold/sm" style={{ display: "block" }}>
+            <Text kind="body/bold/md" style={{ display: "block" }}>
               What this evidence could not answer
             </Text>
             <ul>
               {architecture.not_determinable.map((item, index) => (
                 <li key={index}>
-                  <Text kind="body/regular/sm">{item}</Text>
+                  <Text kind="body/regular/md">{item}</Text>
                 </li>
               ))}
             </ul>
@@ -634,14 +634,14 @@ function Field({
   return (
     <Box>
       <Text
-        kind="body/regular/xs"
+        kind="body/regular/sm"
         style={{ color: "var(--text-color-secondary)", display: "block" }}
       >
         {label}
       </Text>
-      <Text kind="body/regular/sm">{value}</Text>
+      <Text kind="body/regular/md">{value}</Text>
       {evidence && (
-        <Text kind="body/regular/xs" style={{ display: "block" }}>
+        <Text kind="body/regular/sm" style={{ display: "block" }}>
           <span className="nvsf-code">{evidence}</span>
         </Text>
       )}

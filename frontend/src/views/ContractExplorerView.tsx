@@ -61,11 +61,11 @@ export function ContractExplorerView() {
 
       {/* ── Start here ────────────────────────────────────────────────────────────────── */}
       <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
-        <Text kind="body/bold/md" style={{ display: "block", marginBottom: 4 }}>
+        <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 4 }}>
           Integrating a tool? Start here.
         </Text>
         <Text
-          kind="body/regular/sm"
+          kind="body/regular/md"
           style={{ color: "var(--text-color-secondary)", display: "block", marginBottom: 16 }}
         >
           The agent pack is written for a coding agent: it carries the schemas plus the five rules
@@ -106,13 +106,13 @@ export function ContractExplorerView() {
         {data.entities.map((entity) => (
           <Paper key={entity.name} variant="outlined" sx={{ p: 2.5 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-              <Text kind="body/bold/sm">{entity.title}</Text>
-              <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+              <Text kind="body/bold/md">{entity.title}</Text>
+              <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
                 {entity.required.length} required
               </Text>
             </Box>
             <Text
-              kind="body/regular/sm"
+              kind="body/regular/md"
               style={{ display: "block", marginTop: 6, minHeight: 40 }}
             >
               {ONE_LINERS[entity.name] ?? entity.description.split("\n\n")[0]}
@@ -122,11 +122,11 @@ export function ContractExplorerView() {
                 to={entityPath(entity.name)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
               >
-                <Text kind="body/regular/sm">Fields and reasoning</Text>
+                <Text kind="body/regular/md">Fields and reasoning</Text>
                 <ChevronRight size={14} />
               </Link>
               <a href={`/api/contracts/nrm/${data.nrm_version}/${entity.schema}`}>
-                <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+                <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
                   raw schema
                 </Text>
               </a>
@@ -144,14 +144,14 @@ export function ContractExplorerView() {
         <Box sx={{ display: "grid", gap: 1 }}>
           {data.supporting.map((entity) => (
             <Box key={entity.name} sx={{ display: "flex", gap: 2, alignItems: "baseline" }}>
-              <Text kind="body/bold/xs" style={{ minWidth: 90 }}>
+              <Text kind="body/bold/sm" style={{ minWidth: 90 }}>
                 {entity.title}
               </Text>
-              <Text kind="body/regular/sm" style={{ flexGrow: 1 }}>
+              <Text kind="body/regular/md" style={{ flexGrow: 1 }}>
                 {entity.description.split("\n\n")[0]}
               </Text>
               <a href={`/api/contracts/nrm/${data.nrm_version}/${entity.schema}`}>
-                <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+                <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
                   raw
                 </Text>
               </a>
@@ -185,10 +185,10 @@ export function ContractExplorerView() {
       </Box>
 
       <Paper variant="outlined" sx={{ p: 3 }}>
-        <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
+        <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 8 }}>
           Before you claim conformance
         </Text>
-        <Text kind="body/regular/sm" style={{ display: "block", marginBottom: 12 }}>
+        <Text kind="body/regular/md" style={{ display: "block", marginBottom: 12 }}>
           Post your output to the validator. It checks the schema, then the three things a schema
           cannot express: every reference resolves, containment has no cycles, and link classes and
           keys agree with their endpoints. Passing the schema and failing those is the normal
@@ -210,10 +210,10 @@ export function ContractExplorerView() {
 function Decision({ title, body }: { title: string; body: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 2.5 }}>
-      <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 4 }}>
+      <Text kind="body/bold/md" style={{ display: "block", marginBottom: 4 }}>
         {title}
       </Text>
-      <Text kind="body/regular/sm">{body}</Text>
+      <Text kind="body/regular/md">{body}</Text>
     </Paper>
   );
 }

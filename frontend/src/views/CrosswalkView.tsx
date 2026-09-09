@@ -61,7 +61,7 @@ export function CrosswalkView() {
           style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
         >
           <ChevronLeft size={14} />
-          <Text kind="body/regular/sm">All crosswalks</Text>
+          <Text kind="body/regular/md">All crosswalks</Text>
         </Link>
       </Box>
 
@@ -82,25 +82,25 @@ export function CrosswalkView() {
           the same asset, this sentence says which one to believe. */}
       {data.authority && (
         <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
-          <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 4 }}>
+          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 4 }}>
             Authority
           </Text>
-          <Text kind="body/regular/sm">{data.authority}</Text>
+          <Text kind="body/regular/md">{data.authority}</Text>
         </Paper>
       )}
 
       {data.join && (
         <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
-          <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 4 }}>
+          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 4 }}>
             How records are matched
           </Text>
-          <Text kind="body/regular/sm" style={{ display: "block" }}>
+          <Text kind="body/regular/md" style={{ display: "block" }}>
             <span className="nvsf-code">{data.join.nrm_field}</span> ↔{" "}
             <span className="nvsf-code">{data.join.system_field}</span>
           </Text>
           {data.join.note && (
             <Text
-              kind="body/regular/sm"
+              kind="body/regular/md"
               style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
             >
               {data.join.note}
@@ -153,7 +153,7 @@ export function CrosswalkView() {
                       <span className="nvsf-code">{field.system ?? "—"}</span>
                       {field.transform && (
                         <Text
-                          kind="body/regular/xs"
+                          kind="body/regular/sm"
                           style={{ color: "var(--text-color-secondary)", display: "block" }}
                         >
                           via {field.transform}
@@ -177,13 +177,13 @@ export function CrosswalkView() {
                           </span>
                         </Tooltip>
                       )}{" "}
-                      <Text kind="body/regular/sm">{field.note}</Text>
+                      <Text kind="body/regular/md">{field.note}</Text>
                       {field.values && (
                         <Box sx={{ mt: 0.5 }}>
                           {Object.entries(field.values).map(([from, to]) => (
                             <Text
                               key={from}
-                              kind="body/regular/xs"
+                              kind="body/regular/sm"
                               style={{ display: "block", color: "var(--text-color-secondary)" }}
                             >
                               <span className="nvsf-code">{from}</span> →{" "}
@@ -204,7 +204,7 @@ export function CrosswalkView() {
               field is how two systems end up disagreeing with nobody noticing. */}
           {entity.unmapped_nrm && entity.unmapped_nrm.length > 0 && (
             <Paper variant="outlined" sx={{ p: 2.5 }}>
-              <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 8 }}>
+              <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
                 What {data.system} cannot carry
               </Text>
               <Box sx={{ display: "grid", gap: 1 }}>
@@ -212,7 +212,7 @@ export function CrosswalkView() {
                   <Box key={gap.field}>
                     <span className="nvsf-code">{gap.field}</span>
                     <Text
-                      kind="body/regular/sm"
+                      kind="body/regular/md"
                       style={{ color: "var(--text-color-secondary)", display: "block" }}
                     >
                       {gap.reason}
@@ -227,14 +227,14 @@ export function CrosswalkView() {
 
       {data.recommended_labels && (
         <Paper variant="outlined" sx={{ p: 2.5 }}>
-          <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 8 }}>
+          <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
             Recommended labels
           </Text>
           {Object.entries(data.recommended_labels).map(([label, meaning]) => (
             <Box key={label} sx={{ mb: 1 }}>
               <span className="nvsf-code">{label}</span>
               <Text
-                kind="body/regular/sm"
+                kind="body/regular/md"
                 style={{ color: "var(--text-color-secondary)", display: "block" }}
               >
                 {meaning}

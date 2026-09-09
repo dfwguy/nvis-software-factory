@@ -55,10 +55,10 @@ export function AppLayout({
             flexWrap: "wrap",
           }}
         >
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             NVIS Software Factory
           </Text>
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             {[
               standardsVersion ? `standards ${standardsVersion}` : null,
               contractVersion ? `NRM ${contractVersion}` : null,

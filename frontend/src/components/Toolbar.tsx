@@ -44,10 +44,10 @@ export function Toolbar({ title, blurb, sidebarOpen, onOpenSidebar }: ToolbarPro
         )}
 
         <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-          <Text kind="body/bold/md">{title}</Text>
+          <Text kind="body/bold/lg">{title}</Text>
           {blurb && (
             <Text
-              kind="body/regular/sm"
+              kind="body/regular/md"
               style={{ color: "var(--text-color-secondary)", display: "block" }}
             >
               {blurb}

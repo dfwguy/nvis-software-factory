@@ -96,7 +96,7 @@ export function CrosswalksView() {
                     </Link>
                     {coverage.system_version && (
                       <Text
-                        kind="body/regular/xs"
+                        kind="body/regular/sm"
                         style={{ color: "var(--text-color-secondary)", display: "block" }}
                       >
                         {coverage.system_version}
@@ -130,7 +130,7 @@ export function CrosswalksView() {
                         is how an integration discovers a gap in production. */}
                     {coverage.missing_entities.length > 0 && (
                       <Text
-                        kind="body/regular/xs"
+                        kind="body/regular/sm"
                         style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
                       >
                         not mapped: {coverage.missing_entities.join(", ")}

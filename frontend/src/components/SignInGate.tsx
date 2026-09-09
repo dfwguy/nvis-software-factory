@@ -64,7 +64,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
       <Factory size={40} color="var(--text-color-brand, #76b900)" />
       <Text kind="display/sm">NVIS Software Factory</Text>
       <Text
-        kind="body/regular/md"
+        kind="body/regular/lg"
         style={{ color: "var(--text-color-secondary)", maxWidth: 520 }}
       >
         Assess a repository against the NVIS quality baseline, and read the NVIS Resource Model

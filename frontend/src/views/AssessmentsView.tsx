@@ -140,7 +140,7 @@ export function AssessmentsView() {
       )}
 
       <Box sx={{ mt: 2 }}>
-        <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+        <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
           A failed run can be retried from its detail page, and resumes from its last completed
           reasoning pass rather than starting over.
         </Text>

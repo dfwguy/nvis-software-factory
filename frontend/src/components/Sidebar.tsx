@@ -199,7 +199,7 @@ export function Sidebar({ open, onToggle, activeView }: SidebarProps) {
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
           <Factory size={26} color="var(--text-color-brand, #76b900)" />
-          {open && <Text kind="body/bold/md">Software Factory</Text>}
+          {open && <Text kind="body/bold/lg">Software Factory</Text>}
         </Box>
         {open && (
           <IconButton

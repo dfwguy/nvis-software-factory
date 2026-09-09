@@ -95,11 +95,11 @@ export function StartAssessmentPanel({ onStarted, repositoryId, repositoryLabel 
 
   return (
     <Paper variant="outlined" sx={{ p: 3 }}>
-      <Text kind="body/bold/lg" style={{ display: "block", marginBottom: 4 }}>
+      <Text kind="body/bold/xl" style={{ display: "block", marginBottom: 4 }}>
         {repositoryLabel ? `Assess ${repositoryLabel}` : "Assess a repository"}
       </Text>
       <Text
-        kind="body/regular/sm"
+        kind="body/regular/md"
         style={{ color: "var(--text-color-secondary)", display: "block", marginBottom: 16 }}
       >
         A shallow, read-only clone. Nothing from the repository is executed, and anything
@@ -151,7 +151,7 @@ export function StartAssessmentPanel({ onStarted, repositoryId, repositoryLabel 
           }}
         >
           {showContext ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <Text kind="body/regular/sm">
+          <Text kind="body/regular/md">
             Add context (optional, but it changes the severities)
           </Text>
         </button>

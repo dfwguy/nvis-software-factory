@@ -83,7 +83,7 @@ export function EntityView() {
       <Box sx={{ mb: 2 }}>
         <Link to={CONTRACT_PATH} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <ChevronLeft size={14} />
-          <Text kind="body/regular/sm">All entities</Text>
+          <Text kind="body/regular/md">All entities</Text>
         </Link>
       </Box>
 
@@ -138,7 +138,7 @@ export function EntityView() {
                   <span className="nvsf-code">{typeOf(property)}</span>
                   {property.format && (
                     <Text
-                      kind="body/regular/xs"
+                      kind="body/regular/sm"
                       style={{ color: "var(--text-color-secondary)", display: "block" }}
                     >
                       {property.format}
@@ -146,7 +146,7 @@ export function EntityView() {
                   )}
                   {property.const !== undefined && (
                     <Text
-                      kind="body/regular/xs"
+                      kind="body/regular/sm"
                       style={{ color: "var(--text-color-secondary)", display: "block" }}
                     >
                       always {JSON.stringify(property.const)}
@@ -160,7 +160,7 @@ export function EntityView() {
                   {property.description ? (
                     <Markdown source={property.description} />
                   ) : (
-                    <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+                    <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
                       No description in the schema. That is a gap worth reporting.
                     </Text>
                   )}

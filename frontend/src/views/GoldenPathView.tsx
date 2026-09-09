@@ -78,9 +78,9 @@ export function GoldenPathView() {
               }}
             >
               <Box>
-                <Text kind="body/bold/md">{pillar.title}</Text>
+                <Text kind="body/bold/lg">{pillar.title}</Text>
                 <Text
-                  kind="body/regular/xs"
+                  kind="body/regular/sm"
                   style={{ color: "var(--text-color-secondary)", display: "block" }}
                 >
                   <span className="nvsf-code">{pillar.id}</span> · {pillar.criteria.length} criteria
@@ -90,7 +90,7 @@ export function GoldenPathView() {
                 {/* The ceiling is why a missing README can never be reported as a blocker. Stated
                     here so a reader can check that a severity they disagree with was even
                     reachable for this pillar. */}
-                <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+                <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
                   worst possible
                 </Text>
                 <SeverityTag severity={pillar.severity_ceiling} />
@@ -103,10 +103,10 @@ export function GoldenPathView() {
                   key={criterion.id}
                   sx={{ display: "flex", gap: 1.5, alignItems: "baseline", flexWrap: "wrap" }}
                 >
-                  <Text kind="body/bold/xs" style={{ minWidth: 28 }}>
+                  <Text kind="body/bold/sm" style={{ minWidth: 28 }}>
                     {criterion.id}
                   </Text>
-                  <Text kind="body/regular/sm" style={{ flexGrow: 1, minWidth: 240 }}>
+                  <Text kind="body/regular/md" style={{ flexGrow: 1, minWidth: 240 }}>
                     {criterion.title}
                   </Text>
                   <DetectorTag detector={criterion.detector} />
@@ -116,7 +116,7 @@ export function GoldenPathView() {
 
             <Box sx={{ mt: 2 }}>
               <Link to={pillarPath(pillar.id)} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Text kind="body/regular/sm">Criteria in full, with remediation patterns</Text>
+                <Text kind="body/regular/md">Criteria in full, with remediation patterns</Text>
                 <ChevronRight size={14} />
               </Link>
             </Box>

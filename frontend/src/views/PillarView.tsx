@@ -49,7 +49,7 @@ export function PillarView() {
       <Box sx={{ mb: 2 }}>
         <Link to={GOLDEN_PATH} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <ChevronLeft size={14} />
-          <Text kind="body/regular/sm">All pillars</Text>
+          <Text kind="body/regular/md">All pillars</Text>
         </Link>
       </Box>
 
@@ -71,7 +71,7 @@ export function PillarView() {
       />
 
       <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-        <Text kind="body/bold/sm" style={{ display: "block", marginBottom: 8 }}>
+        <Text kind="body/bold/md" style={{ display: "block", marginBottom: 8 }}>
           Criteria at a glance
         </Text>
         <Box sx={{ display: "grid", gap: 1 }}>
@@ -80,10 +80,10 @@ export function PillarView() {
               key={criterion.id}
               sx={{ display: "flex", gap: 1.5, alignItems: "baseline", flexWrap: "wrap" }}
             >
-              <Text kind="body/bold/xs" style={{ minWidth: 28 }}>
+              <Text kind="body/bold/sm" style={{ minWidth: 28 }}>
                 {criterion.id}
               </Text>
-              <Text kind="body/regular/sm" style={{ flexGrow: 1, minWidth: 240 }}>
+              <Text kind="body/regular/md" style={{ flexGrow: 1, minWidth: 240 }}>
                 {criterion.title}
               </Text>
               <DetectorTag detector={criterion.detector} />
@@ -92,7 +92,7 @@ export function PillarView() {
         </Box>
         {pillar.detectors.length > 0 && (
           <Text
-            kind="body/regular/xs"
+            kind="body/regular/sm"
             style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 12 }}
           >
             Scanners for this pillar: {pillar.detectors.join(", ")}

@@ -56,10 +56,10 @@ export function PlatformView() {
       {health.data && !health.data.ok && (
         <Box sx={{ mb: 3 }}>
           <Banner status="error">
-            <Text kind="body/bold/sm" style={{ display: "block" }}>
+            <Text kind="body/bold/md" style={{ display: "block" }}>
               Unhealthy: {health.data.failing.join(", ")}.
             </Text>
-            <Text kind="body/regular/sm">
+            <Text kind="body/regular/md">
               These are required dependencies, so <span className="nvsf-code">/api/health</span>{" "}
               is answering 503 and an orchestrator will treat this instance as unavailable.
             </Text>
@@ -83,7 +83,7 @@ export function PlatformView() {
                   )}
                 </TableCell>
                 <TableCell sx={{ width: 160 }}>
-                  <Text kind="body/bold/sm">{name}</Text>
+                  <Text kind="body/bold/md">{name}</Text>
                 </TableCell>
                 <TableCell>
                   <CheckDetail name={name} check={check} />
@@ -106,7 +106,7 @@ export function PlatformView() {
       <Paper variant="outlined" sx={{ p: 2.5, mb: 4 }}>
         {standards.data ? (
           <>
-            <Text kind="body/regular/sm" style={{ display: "block", marginBottom: 8 }}>
+            <Text kind="body/regular/md" style={{ display: "block", marginBottom: 8 }}>
               <span className="nvsf-code">standards/</span> version{" "}
               <span className="nvsf-code">{standards.data.version}</span> ·{" "}
               {standards.data.pillars.length} pillars ·{" "}
@@ -132,7 +132,7 @@ export function PlatformView() {
         detail="Roles come from your identity provider group claims; this application does not grant them."
       />
       <Paper variant="outlined" sx={{ p: 2.5 }}>
-        <Text kind="body/regular/sm" style={{ display: "block" }}>
+        <Text kind="body/regular/md" style={{ display: "block" }}>
           {user?.display_name ?? user?.email ?? user?.subject ?? "not signed in"}
         </Text>
         <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 1, mb: 1 }}>
@@ -147,7 +147,7 @@ export function PlatformView() {
             "but I am in the group" tickets. */}
         {user?.roles?.length && user.roles.join() !== user.effective_roles.join() ? (
           <Text
-            kind="body/regular/xs"
+            kind="body/regular/sm"
             style={{ color: "var(--text-color-secondary)", display: "block" }}
           >
             granted by group claim: {user.roles.join(", ")} — the rest follow by implication
@@ -156,7 +156,7 @@ export function PlatformView() {
         <Tooltip title={[...permissions].sort().join(", ")}>
           <span>
             <Text
-              kind="body/regular/xs"
+              kind="body/regular/sm"
               style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 8 }}
             >
               {permissions.size} actions permitted
@@ -207,16 +207,16 @@ function LlmPanel() {
               ) : (
                 <XCircle size={16} color="var(--state-bad)" />
               )}
-              <Text kind="body/bold/sm">
+              <Text kind="body/bold/md">
                 {probe.reachable ? "Reachable" : "Not reachable"}
               </Text>
               {probe.latency_ms !== undefined && (
-                <Text kind="body/regular/xs" style={{ color: "var(--text-color-secondary)" }}>
+                <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
                   {millis(probe.latency_ms)}
                 </Text>
               )}
             </Box>
-            <Text kind="body/regular/sm" style={{ display: "block" }}>
+            <Text kind="body/regular/md" style={{ display: "block" }}>
               <span className="nvsf-code">{probe.model ?? "no model configured"}</span>
               {probe.endpoint ? (
                 <>
@@ -227,7 +227,7 @@ function LlmPanel() {
             </Text>
             {probe.detail && (
               <Text
-                kind="body/regular/sm"
+                kind="body/regular/md"
                 style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
               >
                 {probe.detail}
@@ -235,7 +235,7 @@ function LlmPanel() {
             )}
           </>
         ) : (
-          <Text kind="body/regular/sm" style={{ color: "var(--text-color-secondary)" }}>
+          <Text kind="body/regular/md" style={{ color: "var(--text-color-secondary)" }}>
             Not probed. The dependency table below reports whether it is <em>configured</em>;
             probing is what tells you whether it <em>answers</em>.
           </Text>
@@ -266,12 +266,12 @@ function CheckDetail({ name, check }: { name: string; check: HealthCheck }) {
 
   return (
     <>
-      <Text kind="body/regular/sm" style={{ display: "block" }}>
+      <Text kind="body/regular/md" style={{ display: "block" }}>
         {facts.join(" · ") || (check.ok ? "ok" : "unavailable")}
       </Text>
       {typeof check.detail === "string" && check.detail && (
         <Text
-          kind="body/regular/xs"
+          kind="body/regular/sm"
           style={{ color: "var(--text-color-secondary)", display: "block" }}
         >
           {check.detail}
@@ -281,14 +281,14 @@ function CheckDetail({ name, check }: { name: string; check: HealthCheck }) {
           case this exists for: it must be impossible to miss without failing the check. */}
       {typeof check.warning === "string" && check.warning && (
         <Text
-          kind="body/regular/xs"
+          kind="body/regular/sm"
           style={{ color: "var(--state-warn)", display: "block" }}
         >
           {check.warning}
         </Text>
       )}
       {name === "backups" && check.stale === true && (
-        <Text kind="body/regular/xs" style={{ color: "var(--state-warn)", display: "block" }}>
+        <Text kind="body/regular/sm" style={{ color: "var(--state-warn)", display: "block" }}>
           The newest snapshot is older than the configured interval. Not fatal, but this is the
           pillar the factory judges hardest.
         </Text>
