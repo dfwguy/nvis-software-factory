@@ -45,11 +45,51 @@
   box-sizing: border-box;
 }
 
+/*
+ * The one place the text scale is set, and it has to be `html`.
+ *
+ * Both design systems in this app size text in rem. Kaizen's tokens are rem (`--text-14` is
+ * .875rem), and MUI's variants are rem. So the root font size is the single lever that moves the
+ * navigation, the tables, the Kaizen <Text> prose and the MUI form labels together. Anything else
+ * moves one of them and leaves the others behind.
+ *
+ * Setting it on `body` does not work, and the failure is silent, which is worth spelling out
+ * because it has cost time on more than one of these applications. MUI's <CssBaseline> injects
+ * `body { ...typography.body1 }` into <head> at runtime, after the bundled stylesheet, so it wins
+ * on order every time. A `body { font-size }` rule here therefore has no effect whatsoever --
+ * this file used to carry one, and it had been dead since CssBaseline was added. Editing a
+ * declaration that cannot take effect looks exactly like a stylesheet-order problem, which is the
+ * wrong thing to go and fix.
+ *
+ * A percentage, not a pixel value: this multiplies whatever the reader has set as their browser
+ * default rather than replacing it, so anyone who has raised their base size for legibility keeps
+ * the benefit. 112.5% is 18px against the usual 16px default, which puts Kaizen body text at
+ * 15.75px and secondary prose at 13.5px. The app is text-heavy -- it exists to be read -- and the
+ * previous default left explanatory copy at 12px.
+ */
+html {
+  font-size: 112.5%;
+}
+
+/*
+ * Kaizen fixes the vertical nav at `width: 240px`, which fought the Drawer that contains it: the
+ * drawer scaled with the root and the nav did not, so "Mapping assistant" was clipped inside a
+ * sidebar with room to spare. One owner for that width, and it is the Drawer -- this makes the
+ * nav fill whatever it is given.
+ *
+ * Kaizen's `--spacing: 4px` is deliberately left alone. Converting it to .25rem so that padding
+ * tracked the type was tried, and it pushed the navigation past the bottom of a 900px viewport --
+ * "Platform health" disappeared. The type scale wants to grow here; the spacing scale does not,
+ * and they are separate decisions.
+ */
+.nv-vertical-nav-root {
+  width: 100%;
+}
+
 body {
   margin: 0;
   font-family: "NVIDIA Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", sans-serif;
-  font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }

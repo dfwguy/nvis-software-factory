@@ -31,8 +31,16 @@ import { Link } from "react-router-dom";
 
 import { EXTERNAL_LINKS, NAV_GROUPS, ROUTES, type RouteDef, type ViewId } from "../routes";
 
-export const DRAWER_WIDTH_OPEN = 248;
-export const DRAWER_WIDTH_CLOSED = 64;
+// rem, not px, because the drawer's job is to hold text. A bare number here becomes a pixel
+// value that stays put while the labels inside it grow with the root font size, so the longest
+// item -- "Mapping assistant" -- starts truncating and the product name wraps. That is not
+// hypothetical: it is what this sidebar does at a 125% root, and a reader who has raised their
+// browser's default font size for legibility gets it without touching anything.
+//
+// 15.5rem and 4rem are the previous 248px and 64px at a 16px root, so the default rendering is
+// unchanged and the width now tracks the text.
+export const DRAWER_WIDTH_OPEN = "15.5rem";
+export const DRAWER_WIDTH_CLOSED = "4rem";
 
 const ICON_SIZE = 20;
 
