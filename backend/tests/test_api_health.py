@@ -97,6 +97,48 @@ def test_deep_health_reports_every_dependency(app_client, reachable_llm):
         assert dependency in body["checks"], f"{dependency} is not reported"
 
 
+def test_a_configured_but_unprobed_llm_is_not_reported_as_passing(app_client, monkeypatch):
+    """Configured is not working, and this endpoint must not blur the two.
+
+    /api/health does not spend a round trip on the reasoning endpoint, so all it can honestly say
+    is that settings are present. It used to say `ok: true` for that, which put a green tick in
+    the platform dashboard against an endpoint that was answering 401 to every call -- a
+    deployment that could not complete a single assessment, reporting itself healthy.
+    """
+    monkeypatch.setenv("NVSF_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("NVSF_LLM_MODEL", "some-model")
+
+    check = app_client.get("/api/health").get_json()["checks"]["llm"]
+
+    assert check["ok"] is None, "unverified must be null, never true"
+    assert check["configured"] is True
+    assert check["verified"] is False
+
+
+def test_an_unprobed_llm_is_not_reported_as_failing_either(app_client, monkeypatch):
+    """Unknown is not the same as broken. Dropping an instance out of a load balancer over
+    something never measured would be the same error in the other direction."""
+    monkeypatch.setenv("NVSF_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("NVSF_LLM_MODEL", "some-model")
+
+    body = app_client.get("/api/health").get_json()
+
+    assert "llm" not in body["failing"]
+
+
+def test_an_unconfigured_llm_is_a_hard_failure(app_client, monkeypatch):
+    """No endpoint means no assessment can ever run, and there is no degraded mode by design."""
+    monkeypatch.delenv("NVSF_LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("NVSF_LLM_BASE_URL", "")
+
+    response = app_client.get("/api/health")
+
+    assert response.status_code == 503
+    body = response.get_json()
+    assert body["checks"]["llm"]["ok"] is False
+    assert "llm" in body["failing"]
+
+
 def test_deep_health_is_503_when_something_required_is_broken(app_client, monkeypatch):
     """A monitor that only reads the status code still learns the truth. Returning 200 with a
     body saying "unhealthy" is how an outage goes unnoticed for a day."""

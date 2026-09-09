@@ -106,13 +106,26 @@ def health():
 
     # ── Reasoning endpoint. Configuration only here; reachability is /api/health/llm, which costs
     # a round trip and should not be paid for by every monitoring poll.
+    #
+    # `ok` is deliberately three-valued, and this is the one row where that matters most. Being
+    # configured is not the same as working: a deployment pointed at a live endpoint with a stale
+    # key is configured, answers 401, and cannot complete a single assessment. Reporting that as
+    # `ok: true` turns "we did not look" into a pass, which is the exact conversion this product
+    # exists to catch in other people's software -- and it did it here, showing a green tick
+    # against a reasoning endpoint that was rejecting every call.
+    #
+    # So: false when it cannot possibly work, null when we have not established that it does.
+    # Only /api/health/llm returns evidence, and only that endpoint may report `ok: true`.
     configured = bool(settings.get("NVSF_LLM_BASE_URL") and settings.get("NVSF_LLM_MODEL"))
     checks["llm"] = {
-        "ok": configured,
+        "ok": None if configured else False,
         "configured": configured,
+        "verified": False,
         "model": settings.get_str("NVSF_LLM_MODEL") or None,
-        "note": "reachability is checked by /api/health/llm",
+        "note": "configured only — /api/health/llm establishes whether it answers",
     }
+    # Unverified is not a failure: it is genuinely unknown, and flapping a deployment out of a
+    # load balancer over something never measured would be its own kind of lie.
     if not configured:
         required_failures.append("llm")
 

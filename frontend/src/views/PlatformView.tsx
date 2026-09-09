@@ -24,7 +24,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import { Banner, Button, Tag, Text } from "@nvidia/foundations-react-core";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -76,7 +76,12 @@ export function PlatformView() {
             {checks.map(([name, check]) => (
               <TableRow key={name}>
                 <TableCell sx={{ width: 40 }}>
-                  {check.ok ? (
+                  {/* Three states, because `ok: null` means nobody has looked. Rendering that as
+                      the same green tick as a measured pass is what let a reasoning endpoint sit
+                      here answering 401 behind a checkmark. */}
+                  {check.ok === null || check.ok === undefined ? (
+                    <CircleDashed size={16} color="var(--state-warn)" />
+                  ) : check.ok ? (
                     <CheckCircle2 size={16} color="var(--state-ok)" />
                   ) : (
                     <XCircle size={16} color="var(--state-bad)" />
@@ -245,6 +250,16 @@ function LlmPanel() {
   );
 }
 
+/** Configured, but nothing has established that it works. Neither a pass nor a failure. */
+function unverified(check: HealthCheck): boolean {
+  return check.ok === null || check.ok === undefined;
+}
+
+function summary(check: HealthCheck): string {
+  if (unverified(check)) return "configured";
+  return check.ok ? "ok" : "unavailable";
+}
+
 function CheckDetail({ name, check }: { name: string; check: HealthCheck }) {
   const facts: string[] = [];
 
@@ -267,8 +282,13 @@ function CheckDetail({ name, check }: { name: string; check: HealthCheck }) {
   return (
     <>
       <Text kind="body/regular/md" style={{ display: "block" }}>
-        {facts.join(" · ") || (check.ok ? "ok" : "unavailable")}
+        {facts.join(" · ") || summary(check)}
       </Text>
+      {unverified(check) && (
+        <Text kind="body/regular/sm" style={{ color: "var(--state-warn)", display: "block" }}>
+          not verified — configured, but nothing has confirmed it answers
+        </Text>
+      )}
       {typeof check.detail === "string" && check.detail && (
         <Text
           kind="body/regular/sm"

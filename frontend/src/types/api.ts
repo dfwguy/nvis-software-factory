@@ -461,7 +461,12 @@ export interface Session extends Envelope {
 }
 
 export interface HealthCheck {
-  ok: boolean;
+  /**
+   * Three-valued on purpose. `null` means unverified — the check is configured but nothing has
+   * established that it works. It is not a pass and not a failure, and collapsing it into either
+   * is how a dashboard ends up reassuring you about something it never measured.
+   */
+  ok: boolean | null;
   detail?: string;
   [key: string]: unknown;
 }
