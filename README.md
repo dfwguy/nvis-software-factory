@@ -113,6 +113,18 @@ bash scripts/check_no_secrets_in_git.sh
 cd frontend && npm ci && npm run dev
 ```
 
+To run the whole application locally, on loopback with the mock identity provider:
+
+```bash
+cp .env.example .env      # then set NVSF_LLM_API_KEY
+./bin/run-local.sh
+```
+
+The script probes the reasoning endpoint after startup and prints whether it answers. That is the
+point of it: reasoning is only exercised when an assessment runs, so an instance configured with a
+dead key serves pages perfectly and fails the first real request — which is how a placeholder key
+once survived a day of local development.
+
 The coverage floor starts at 60% per file with an empty exception list. That is only possible in a
 greenfield repo, and it is worth protecting: adding to the list requires editing
 `bin/check-coverage-floor.py` in a merge request, which makes new debt a visible decision rather
