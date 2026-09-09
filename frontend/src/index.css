@@ -1,0 +1,122 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+ *
+ * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+ * property and proprietary rights in and to this material, related
+ * documentation and any modifications thereto. Any use, reproduction,
+ * disclosure or distribution of this material and related documentation
+ * without an express license agreement from NVIDIA CORPORATION or
+ * its affiliates is strictly prohibited.
+ */
+
+/*
+ * App-level styling. Two rules here:
+ *
+ * 1. Colour comes from Kaizen custom properties (--text-color-*, --background-color-*) or from
+ *    the MUI palette in theme.ts. Nothing in this file hardcodes a hex value that the theme
+ *    already owns, because a hardcoded one does not follow the light/dark switch.
+ * 2. Only the handful of tokens below are local, and each is here because Kaizen has no
+ *    equivalent: the severity scale, which is ours, and the monospace stack for code excerpts.
+ *
+ * Unlike the reference application there is no Tailwind import. It was used there for a few
+ * utility classes, and a whole utility layer for a few classes is the kind of unused dependency
+ * this application's own Provenance pillar flags. Layout is MUI `sx`, which is already present.
+ */
+
+:root {
+  /* The severity scale, in one place. Every badge, count and border reads from these, so a
+     change to what "blocker" looks like is one edit rather than a search. */
+  --sev-blocker: #ff5252;
+  --sev-major: #ffb74d;
+  --sev-minor: #64b5f6;
+  --sev-info: #9e9e9e;
+
+  /* Binary health, which is a different scale from severity and must not borrow from it: a
+     dependency is up or it is not, and "major" has no meaning there. */
+  --state-ok: #6bbf00;
+  --state-bad: var(--sev-blocker);
+  --state-warn: var(--sev-major);
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "NVIDIA Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Code excerpts from an assessed repository. `white-space: pre-wrap` rather than `pre`: a long
+   line in someone else's file must not add a horizontal scrollbar to the whole page. */
+.nvsf-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
+/* Rendered Markdown coming from the standards files and the model's prose. Scoped to this class
+   so it cannot leak into the application chrome. */
+.nvsf-prose h2,
+.nvsf-prose h3,
+.nvsf-prose h4 {
+  margin: 1.4em 0 0.5em;
+  line-height: 1.3;
+}
+
+.nvsf-prose p,
+.nvsf-prose ul,
+.nvsf-prose ol {
+  margin: 0.6em 0;
+}
+
+.nvsf-prose li {
+  margin: 0.25em 0;
+}
+
+.nvsf-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.nvsf-prose pre {
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.nvsf-prose pre code {
+  background: none;
+  padding: 0;
+}
+
+.nvsf-prose table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+}
+
+.nvsf-prose th,
+.nvsf-prose td {
+  border: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.3));
+  padding: 6px 10px;
+  text-align: left;
+}
