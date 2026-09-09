@@ -1,9 +1,14 @@
 # Ruff configuration for nvis-software-factory.
 #
-# Deliberately EXTENDING ruff's defaults rather than declaring a `select` list. Ruff's defaults are
-# broader than the documented E4/E7/E9/F -- they also carry B (bugbear), S (bandit), BLE
-# (blind-except), SIM and UP. An explicit `select` would silently drop whichever of those we forgot
-# to name, weakening the gate while looking like an improvement. `extend-select` cannot do that.
+# Deliberately EXTENDING rather than declaring a `select` list: an explicit `select` silently drops
+# whichever family we forget to name, weakening the gate while looking like a tightening.
+# `extend-select` cannot do that.
+#
+# `S` (bandit) is named explicitly, and the reason is worth recording. An earlier version of this
+# file asserted that ruff's defaults already carried it. They do not -- the defaults are E4, E7, E9
+# and F, and three S rules arrived only as a side effect of `preview`. So the repository that
+# publishes a data-security pillar was running almost none of the security lint it assumed it had,
+# which is precisely the class of finding it exists to catch in other people's code.
 #
 # The version is pinned in backend/requirements-dev.txt and in .gitlab-ci.yml, and the two must
 # match. Unpinned, every ruff release widens the default rule set under us.
@@ -16,9 +21,12 @@ target-version = "py312"
 preview = true
 
 [lint]
-# Full pycodestyle on top of the defaults: E4 (imports), E7 (statements) and E9 (runtime) are
-# already on; this adds E1/E2/E3 (indentation, whitespace, blank lines) and the W warnings.
-extend-select = ["E", "W"]
+# E/W: full pycodestyle on top of the defaults -- E1/E2/E3 (indentation, whitespace, blank lines)
+#      and the W warnings.
+# S:   bandit. The rules that matter here are the ones about secrets reaching disk or logs, weak
+#      hashes, disabled TLS verification, and unsafe deserialization -- all of which this codebase
+#      touches, and all of which it judges other repositories for.
+extend-select = ["E", "W", "S"]
 
 ignore = [
     # The one deliberate PEP 8 exception, by decision rather than omission. `line-length` above is
@@ -28,6 +36,20 @@ ignore = [
     # and both are wide mechanical rewrites. Revisit when they leave preview.
     "UP017",    # datetime.UTC over timezone.utc
     "FURB162",  # fromisoformat().replace("Z") simplification
+
+    # ── Bandit rules turned off with a reason, not because they were inconvenient ─────────────
+    #
+    # S105/S106/S107 flag identifiers containing "pass" as hardcoded credentials. In this codebase
+    # a *pass* is a stage of LLM reasoning -- PASS_ARCHITECTURE, PASS_REMEDIATION, pass_name -- so
+    # the rule fires on the domain vocabulary and nowhere near a credential. Left on, it would
+    # train everyone to add noqa to every line mentioning a pass, which is how a real hit gets
+    # waved through. Credentials are covered where it counts instead: secrets are refused from the
+    # config file by backend/config_registry.py, scripts/check_no_secrets_in_git.sh gates the
+    # tracked tree, and the redaction tests assert that no candidate value leaves the process.
+    "S105", "S106", "S107",
+    # S404 flags importing subprocess at all. This application clones repositories; it runs git.
+    # The question worth asking is what gets passed to it, and S603 below is what asks it.
+    "S404",
 ]
 
 [lint.per-file-ignores]
@@ -38,7 +60,15 @@ ignore = [
 # Tests may assert freely and reach into private module surfaces on purpose. Unlike the repo this
 # pattern came from, backend/tests IS linted here -- starting a project with the tests excluded is
 # how you end up with a hundred findings nobody can face fixing.
-"backend/tests/*" = ["S101", "SLF001", "S105", "S106"]
+#
+# The subprocess rules are off for the same reason they are answered inline in acquire.py: several
+# tests exist specifically to run git, or to run this application in a real second process, and
+# both are the point of the test rather than a risk in it.
+"backend/tests/*" = ["S101", "SLF001", "S603", "S607", "S104"]
+
+# conf.py shells out to git to read the version for the footer. Same argument as the tests: fixed
+# argv, no shell, no input.
+"docs/conf.py" = ["S603", "S607"]
 
 # The evidence scanners match on credential-shaped strings by design; bandit's hardcoded-password
 # rules fire on the patterns themselves.

@@ -20,7 +20,15 @@ static/spa/
 
 # ── Sphinx ───────────────────────────────────────────────────────────────────
 docs/_build/
-docs/reference/generated/
+# Where the built HTML is staged for the app to serve. The Docker build writes it from the docs
+# stage; a developer running locally writes it with sphinx-build. Either way it is output, and
+# committing it would mean the docs a deployment serves could be older than the pages they came
+# from -- with nothing to reveal the gap.
+static/docs/
+# Generated reference pages under docs/reference/ are COMMITTED, deliberately. The drift check
+# (`bin/gen-docs-reference.py --check`) diffs the tree against a fresh generation, which it can
+# only do if the tree is tracked -- and a schema change showing up as a docs diff in the merge
+# request is the review signal that makes the check worth having.
 
 # ── Runtime state ────────────────────────────────────────────────────────────
 # The bind-mounted data directory. Everything durable lives here, which is exactly

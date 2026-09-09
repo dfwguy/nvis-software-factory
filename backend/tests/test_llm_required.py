@@ -432,6 +432,55 @@ def test_probe_distinguishes_a_credential_problem(llm_configured, monkeypatch):
     assert "NVSF_LLM_API_KEY" in llm.probe()["detail"]
 
 
+def test_probe_explains_a_retired_model(llm_configured, monkeypatch):
+    """What a deployment that worked for a year says on the day it stops.
+
+    The hosted catalog retires models on published end-of-life dates and answers 410 afterwards.
+    This is not hypothetical: the whole Llama 3.3 family went end-of-life on 2026-08-26, and the
+    generic "unexpected HTTP 410" it produced before sent the reader hunting for a network fault
+    when the fix is one setting.
+    """
+    from factory import llm
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Response(410, {
+        "type": "about:blank", "title": "Gone", "status": 410,
+        "detail": "The model 'meta/llama-3.3-70b-instruct' has reached its end of life on "
+                  "2026-08-26T09:00:00Z and is no longer available.",
+    }))
+
+    detail = llm.probe()["detail"]
+
+    assert "retired" in detail
+    assert "NVSF_LLM_MODEL" in detail, "the message must name the setting to change"
+    assert "end of life" in detail, "the provider's own explanation should survive"
+
+
+def test_probe_surfaces_the_error_body_of_an_unexpected_status(llm_configured, monkeypatch):
+    """The body of a 4xx usually says exactly what is wrong. Reporting only the status code
+    throws away the actionable half and leaves a number to search the internet for."""
+    from factory import llm
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Response(422, {
+        "error": {"message": "temperature must be between 0 and 2"},
+    }))
+
+    assert "temperature must be between 0 and 2" in llm.probe()["detail"]
+
+
+def test_probe_survives_an_error_body_that_is_not_json(llm_configured, monkeypatch):
+    """A proxy in the path returns HTML, and a health probe must not raise on it."""
+    from factory import llm
+
+    monkeypatch.setattr(
+        requests, "post", lambda *a, **k: _Response(502, text="<html>Bad Gateway</html>")
+    )
+
+    report = llm.probe()
+
+    assert report["reachable"] is False
+    assert "502" in report["detail"]
+
+
 def test_health_llm_returns_503_when_unreachable(app_client, monkeypatch):
     """503, not 500: nothing is broken, a dependency is unavailable, and an assessment cannot
     run. That distinction is what lets monitoring act correctly."""

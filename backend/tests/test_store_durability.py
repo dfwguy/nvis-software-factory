@@ -18,6 +18,7 @@ database and reads a row back out of it, which is the only version of that claim
 
 from __future__ import annotations
 
+import os
 import sqlite3
 
 import pytest
@@ -61,6 +62,55 @@ def test_migrations_are_idempotent(migrated):
 
     assert migrations.apply() == []
     assert migrations.current_version() >= 1
+
+
+def test_concurrent_processes_can_migrate_a_cold_database(data_dir):
+    """Several processes applying migrations at once must produce one winner and no casualties.
+
+    A regression test for a deployment failure, not a theoretical race. Gunicorn forks its
+    workers, each imports the application, each calls ``apply()``. On a cold boot they all read an
+    empty ``schema_migrations``, all decide 0001 is pending, and the ones that lose the race die
+    with ``table repositories already exists`` -- which gunicorn reports only as "Worker failed to
+    boot".
+
+    Real subprocesses, because that is the whole point: the threading lock that used to guard this
+    is invisible across a fork, so a thread-based test would have passed while the deployment
+    failed.
+    """
+    import concurrent.futures
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parent.parent
+    program = (
+        f"import sys; sys.path.insert(0, {str(backend)!r});"
+        "from store import migrations;"
+        "print(len(migrations.apply()))"
+    )
+
+    def migrate() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True, text=True, timeout=60, check=False,
+            env={**os.environ, "NVSF_DATA_DIR": str(data_dir)},
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: migrate(), range(4)))
+
+    failed = [r for r in results if r.returncode != 0]
+    assert not failed, (
+        "a process failed to apply migrations concurrently:\n"
+        + "\n".join(r.stderr[-600:] for r in failed)
+    )
+
+    # Exactly one process should report having applied anything. More than one means two
+    # processes both ran the DDL and the second only appeared to succeed.
+    applied = [int(r.stdout.strip()) for r in results]
+    assert sum(1 for count in applied if count > 0) == 1, (
+        f"expected exactly one process to apply migrations, got counts {applied}"
+    )
 
 
 def test_edited_migration_is_refused(migrated, monkeypatch):

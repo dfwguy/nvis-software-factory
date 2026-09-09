@@ -35,13 +35,19 @@ several other engines do not.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import hashlib
 import logging
+import os
 import re
 import sqlite3
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+import paths
 
 from . import db
 
@@ -165,14 +171,48 @@ def _transactional_script(migration: Migration) -> str:
     )
 
 
+@contextlib.contextmanager
+def _exclusive() -> Iterator[None]:
+    """Hold a cross-process lock for the duration of a migration run.
+
+    A threading lock is not enough. Gunicorn runs several worker **processes**, each importing the
+    application, each calling :func:`apply` on a cold boot. They race: both read the same empty
+    ``schema_migrations``, both decide migration 0001 is pending, one wins, and the loser dies with
+    ``table repositories already exists`` -- which gunicorn reports as "Worker failed to boot", a
+    message pointing nowhere near the cause.
+
+    ``flock`` rather than a lock row in the database, because the thing being guarded is the
+    creation of the database itself: at this point there may be no table to take a row lock in.
+
+    Advisory and POSIX-only, which covers the Linux container and macOS development. The lock file
+    lives beside the database, so it is per data directory and tests never contend with a running
+    instance.
+    """
+    lock_path = paths.db_path().parent / ".migrations.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+    finally:
+        # Released by closing the descriptor too, but explicitly, so the ordering is stated.
+        with contextlib.suppress(OSError):
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        os.close(handle)
+
+
 def apply(conn: sqlite3.Connection | None = None) -> list[str]:
     """Apply pending migrations. Returns what was applied, for logging and tests.
 
-    Serialized by a lock: gunicorn starts threads that could otherwise both reach this on a cold
-    boot, and two concurrent CREATE TABLE statements produce a confusing error rather than a clear
-    one.
+    Serialized twice over, because there are two kinds of concurrency here: a threading lock for
+    threads within a worker, and a file lock for the worker processes gunicorn forks. See
+    :func:`_exclusive`.
+
+    ``pending`` is read **inside** both locks. That is what makes the second arrival a no-op rather
+    than an error: by the time it gets in, the migrations are recorded as applied and there is
+    nothing outstanding to run.
     """
-    with db._schema_lock:
+    with db._schema_lock, _exclusive():
         target = conn or db.connection()
         outstanding = pending(target)
         if not outstanding:

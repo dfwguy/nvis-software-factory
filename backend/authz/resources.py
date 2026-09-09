@@ -110,6 +110,18 @@ _ALL = [
     _action("contract:map", {Role.MEMBER},
             "Ask the model to propose a crosswalk for a sample export", mutating=True),
 
+    # ── The baseline ────────────────────────────────────────────────────────────────────────
+    # Viewer, like the contract, and for the same reason: an SA deciding whether to submit their
+    # repository should be able to read what will be checked without asking for permission.
+    _action("standards:read", {Role.VIEWER},
+            "Read the quality baseline: pillars, criteria and remediation patterns"),
+
+    # ── Documentation ───────────────────────────────────────────────────────────────────────
+    # The docs are served by this app, so they go through the same hook as everything else, and
+    # a route with no declared action is denied. Without this entry /docs is a 403 for every
+    # user including admins -- which reads as a broken deployment rather than a policy decision.
+    _action("docs:read", {Role.VIEWER}, "Read the documentation site served at /docs"),
+
     # ── Operations ──────────────────────────────────────────────────────────────────────────
     _action("health:read", {Role.VIEWER}, "Read health and dependency status"),
     _action("diagnostics:read", {Role.ADMIN},

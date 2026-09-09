@@ -227,8 +227,10 @@ def active_assessments() -> list[Assessment]:
     leaving it in that state means the UI shows a spinner forever.
     """
     placeholders = ", ".join("?" * 5)
+    # The interpolated part is a run of question marks. Every status is bound as a parameter;
+    # nothing derived from input reaches the SQL text.
     rows = db.query(
-        f"SELECT * FROM assessments WHERE status IN ({placeholders}) ORDER BY created_at",
+        f"SELECT * FROM assessments WHERE status IN ({placeholders}) ORDER BY created_at",  # noqa: S608
         (Status.QUEUED, Status.CLONING, Status.SCANNING, Status.REASONING, Status.RENDERING),
     )
     return [_row_to_assessment(r) for r in rows]
@@ -248,7 +250,12 @@ def set_status(assessment_id: str, status: Status) -> None:
         fields.append("finished_at = ?")
         params.append(now_iso())
     params.append(assessment_id)
-    db.execute(f"UPDATE assessments SET {', '.join(fields)} WHERE id = ?", tuple(params))
+    # `fields` is assembled from the string literals above and nothing else. The values,
+    # including the status, are bound.
+    db.execute(
+        f"UPDATE assessments SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+        tuple(params),
+    )
 
 
 def fail_assessment(

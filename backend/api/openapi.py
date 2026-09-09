@@ -85,6 +85,11 @@ _TAGS: tuple[tuple[str, str, str], ...] = (
         "Assessment runs. Each produces deterministic findings plus a required LLM reasoning "
         "stage, and renders a downloadable Markdown bundle."
     )),
+    ("/api/standards", "standards", (
+        "The quality baseline an assessment judges against: eight pillars, their criteria, and "
+        "which criteria have a deterministic detector versus being a judgement. Served from the "
+        "same files the prompts are built from."
+    )),
     ("/api/health", "health", (
         "Health per dependency. /live is liveness only; / returns 503 when a required dependency "
         "is down."

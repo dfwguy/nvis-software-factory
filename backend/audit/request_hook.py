@@ -105,6 +105,19 @@ def install(app: Flask) -> None:
         g.principal = principal
 
         view = app.view_functions.get(request.endpoint or "")
+
+        # An /api/ path that matched nothing but the SPA catch-all does not exist. Answering 403
+        # would be true in a narrow sense -- the catch-all declares no action -- and misleading in
+        # every practical one: the caller reads it as a permissions problem and goes looking for a
+        # role they are missing, when they have a typo, or are calling a POST-only endpoint with
+        # GET. Endpoint existence is not a secret here anyway; the OpenAPI document lists them all.
+        #
+        # Let it through to the view, which answers with the JSON 404 it was written to give.
+        if request.endpoint == "serve_spa" and request.path.startswith("/api/"):
+            g.action_name = None
+            g.decision = None
+            return None
+
         action_name = authz.action_of(view)
         decision = authz.decide(principal, action_name)
         g.action_name = action_name
@@ -181,3 +194,14 @@ def bypass_prefixes() -> tuple[str, ...]:
     """Exposed so the OpenAPI generator can mark these endpoints as unauthenticated, and so the
     test that keeps the list honest has something to read."""
     return _BYPASS_PREFIXES
+
+
+def needs_session(path: str) -> bool:
+    """Whether *path* is subject to authentication and authorization.
+
+    Public because the rule "a route either bypasses this hook or declares an action" is the one
+    that decides whether a route is reachable at all, and a test asserting it should read the same
+    function the hook uses rather than reimplementing the prefix and shell lists. When those two
+    drifted apart, ``/docs`` was a 403 for every user and the test passed.
+    """
+    return _needs_session(path)

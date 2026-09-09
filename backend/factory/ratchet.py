@@ -374,7 +374,13 @@ def verify(findings: list[Finding], facts: list[Fact]) -> list[str]:
         if finding is None:
             problems.append(f"scanner finding {fact.key!r} is missing from the merged set")
             continue
-        assert fact.severity is not None
+        if fact.severity is None:
+            # `is_finding` is defined as having a severity, so this cannot happen -- and this
+            # function is the audit that proves the ratchet held, so it reports rather than
+            # asserts. An assert vanishes under -O, and the one place that must not silently stop
+            # checking is the check itself.
+            problems.append(f"scanner fact {fact.key!r} claims to be a finding with no severity")
+            continue
         if finding.severity.rank < fact.severity.rank:
             problems.append(
                 f"{fact.key!r} was lowered from {fact.severity} to {finding.severity}"

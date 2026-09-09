@@ -140,7 +140,10 @@ def _validate(url: str) -> str:
     # Block the metadata service and loopback outright. A URL is user input and this process can
     # reach the host's network; SSRF via git is a real technique.
     lowered = parts.hostname.lower()
-    if lowered in {"localhost", "127.0.0.1", "0.0.0.0", "::1", "metadata", "metadata.google.internal"}:
+    # S104 reads the literal below as a service listening on every interface. It is a blocklist
+    # entry, which is the opposite.
+    if lowered in {"localhost", "127.0.0.1", "0.0.0.0", "::1",  # noqa: S104
+                   "metadata", "metadata.google.internal"}:
         raise AcquireRefused(f"refusing to fetch from {parts.hostname}")
     if lowered == "169.254.169.254":
         raise AcquireRefused("refusing to fetch from the instance metadata address")
@@ -238,7 +241,11 @@ def _run(args: list[str], cwd: Path | None, timeout: int, redact: str | None = N
     printable = " ".join(a.replace(redact, "***") if redact else a for a in args)
     _logger.debug("acquire: %s", printable)
     try:
-        process = subprocess.Popen(
+        # The check S603 asks for, done: `args` is an argv list rather than a string, and `shell`
+        # is left at its default of False, so there is no shell to inject into. The remote URL
+        # inside it has been through _canonicalize and the SSRF blocklist above, and it lands in a
+        # position git reads as a URL rather than as an option.
+        process = subprocess.Popen(  # noqa: S603
             args, cwd=str(cwd) if cwd else None, env=_git_env(),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             start_new_session=True,
@@ -280,6 +287,11 @@ def _explain(git_error: str) -> str:
             "the repository is private, or does not exist. If it is private, an administrator "
             "needs to configure a read-only token (NVSF_GITLAB_TOKEN or NVSF_GITHUB_TOKEN)."
         )
+    # Before the generic "not found" below, which this message also contains. git says "Remote
+    # branch nope not found", and matching the general case first told the user their repository
+    # did not exist -- sending them to check their access when the ref was the problem.
+    if "couldn't find remote ref" in lowered or "remote branch" in lowered:
+        return "that branch or tag does not exist in the repository."
     if "not found" in lowered or "repository not found" in lowered:
         return "no repository at that URL. Check the path and that you have access to it."
     if "could not resolve host" in lowered:
@@ -292,8 +304,6 @@ def _explain(git_error: str) -> str:
             f"TLS verification failed: {git_error}. The forge's CA may need to be installed in "
             "the container."
         )
-    if "couldn't find remote ref" in lowered:
-        return "that branch or tag does not exist in the repository."
     return f"git failed: {git_error}"
 
 

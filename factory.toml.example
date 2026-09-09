@@ -187,6 +187,24 @@ port = 8000
 # env: NVSF_TLS_KEY
 # tls_key =
 
+# Threads per worker. Enough that a slow contract-bundle response cannot make the health check
+# time out.
+# env: NVSF_WEB_THREADS
+web_threads = 4
+
+# Gunicorn worker timeout. Long because the mapping assistant makes a reasoning call inside a
+# request; finite because an unbounded timeout turns one hung upstream call into a worker that
+# never returns.
+# env: NVSF_WEB_TIMEOUT_SEC
+web_timeout_sec = 300
+
+# Gunicorn worker processes. Deliberately not '2 * cpu + 1': each worker runs its own
+# assessment pool and its own SQLite connections, so the count multiplies both load on the
+# shared reasoning endpoint and write contention on one database file.
+# Capped at the CPU count at startup.
+# env: NVSF_WEB_WORKERS
+web_workers = 2
+
 # ────────────────────────────────────────────────────────────────────────────
 # SECRETS — set these in the environment, NOT in this file.
 # Listed here so the full configuration surface is discoverable in one place.

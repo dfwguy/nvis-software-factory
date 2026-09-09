@@ -144,6 +144,25 @@ register(Setting(
     env="NVSF_TLS_KEY", section="runtime", key="tls_key", type="path", default=None,
     description="PEM private key matching tls_cert.",
 ))
+register(Setting(
+    env="NVSF_WEB_WORKERS", section="runtime", key="web_workers", type="int", default="2",
+    description="Gunicorn worker processes. Deliberately not '2 * cpu + 1': each worker runs its "
+                "own assessment pool and its own SQLite connections, so the count multiplies both "
+                "load on the shared reasoning endpoint and write contention on one database file.",
+    note="Capped at the CPU count at startup.",
+))
+register(Setting(
+    env="NVSF_WEB_THREADS", section="runtime", key="web_threads", type="int", default="4",
+    description="Threads per worker. Enough that a slow contract-bundle response cannot make the "
+                "health check time out.",
+))
+register(Setting(
+    env="NVSF_WEB_TIMEOUT_SEC", section="runtime", key="web_timeout_sec", type="int",
+    default="300",
+    description="Gunicorn worker timeout. Long because the mapping assistant makes a reasoning "
+                "call inside a request; finite because an unbounded timeout turns one hung "
+                "upstream call into a worker that never returns.",
+))
 
 # ── Logging ──────────────────────────────────────────────────────────────────────────────────
 

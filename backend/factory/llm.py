@@ -144,7 +144,9 @@ def _sleep_for(attempt: int) -> float:
     Jitter matters even for one client: several passes retrying in lockstep against an endpoint
     that is recovering is how a recovering endpoint gets knocked back down.
     """
-    return min(2.0 ** attempt, 30.0) * (0.5 + random.random() / 2)
+    # Retry jitter, not a secret. The requirement is that two clients pick different delays, which
+    # the Mersenne Twister satisfies; SystemRandom would be slower and no better at spreading load.
+    return min(2.0 ** attempt, 30.0) * (0.5 + random.random() / 2)  # noqa: S311
 
 
 def complete(
@@ -419,7 +421,11 @@ def probe() -> dict[str, Any]:
         "reachable": False,
         "endpoint": base,
         "model": model,
-        "authenticated": bool(settings.get("NVSF_LLM_API_KEY")),
+        # Whether a key is *configured*, which is not whether it was accepted -- that is what
+        # `reachable` and `detail` report. Named for the narrower claim because the wider one
+        # printed next to a 401 reads as a contradiction, and an operator who believes
+        # "authenticated: true" goes looking somewhere other than the key.
+        "api_key_configured": bool(settings.get("NVSF_LLM_API_KEY")),
     }
     if not base or not model:
         report["detail"] = "not configured"
@@ -462,5 +468,37 @@ def probe() -> dict[str, Any]:
             "OpenAI-compatible root. Check NVSF_LLM_BASE_URL and NVSF_LLM_MODEL."
         )
         return report
-    report["detail"] = f"unexpected HTTP {response.status_code}"
+    if response.status_code == 410:
+        # Retirement, and worth its own branch: the hosted catalog removes models on published
+        # end-of-life dates, so this is what a deployment that worked for a year says on the day
+        # it stops. "unexpected HTTP 410" sent the reader looking for a network fault.
+        report["detail"] = (
+            f"model {model!r} has been retired by the endpoint and no longer exists. Pick a "
+            f"current one -- `curl {report['endpoint']}/models` lists them -- and set "
+            f"NVSF_LLM_MODEL. {_problem_detail(response)}"
+        ).strip()
+        return report
+
+    # The body of a 4xx from an OpenAI-compatible endpoint usually says precisely what is wrong,
+    # and discarding it in favour of the status code alone throws away the actionable half.
+    report["detail"] = f"unexpected HTTP {response.status_code}. {_problem_detail(response)}".strip()
     return report
+
+
+def _problem_detail(response: requests.Response) -> str:
+    """The human-readable half of an error body, if there is one.
+
+    Endpoints disagree about the envelope -- RFC 9457 ``problem+json`` uses ``detail``, the OpenAI
+    shape nests under ``error.message`` -- so both are tried before falling back to a bounded
+    slice of the raw body. Bounded because this string reaches a health page and a log line.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:200].strip()
+
+    if isinstance(body, dict):
+        for candidate in (body.get("detail"), (body.get("error") or {}).get("message")):
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()[:300]
+    return response.text[:200].strip()

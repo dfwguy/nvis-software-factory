@@ -73,6 +73,7 @@ import security_headers
 import settings
 from audit import request_hook
 from authn import session as authn_session
+from authz import action
 from factory import runner
 from flask import Flask, Response, jsonify, send_from_directory
 from flask_compress import Compress
@@ -87,6 +88,16 @@ app = Flask(
 # The assessment bundle and the contract bundle are both large JSON payloads, frequently fetched
 # over an SSH tunnel. Compression is a real win here rather than a micro-optimization.
 Compress(app)
+
+# A collection route is declared as "/" inside its blueprint, so its rule is "/api/assessments/".
+# With strict slashes, "/api/assessments" is a 308 redirect -- and a redirect has no endpoint, so
+# the authorization hook sees a view declaring no action and denies it. The caller gets a 403 for
+# a URL that exists.
+#
+# That URL is not hypothetical: it is what the published OpenAPI document advertises, and
+# therefore what every generated client requests. Serving both spellings is the fix; making the
+# contract describe the trailing slash would be documenting a quirk instead of removing it.
+app.url_map.strict_slashes = False
 
 app.config.update(
     SECRET_KEY=settings.get_str("NVSF_SESSION_SECRET"),
@@ -135,11 +146,15 @@ atexit.register(runner.shutdown)
 
 @app.route("/docs/", defaults={"filename": "index.html"})
 @app.route("/docs/<path:filename>")
+@action("docs:read")
 def serve_docs(filename: str) -> Response:
     """Sphinx HTML, built by CI and copied into the image.
 
     Served by the app rather than published separately so the documentation a deployment shows is
     always the documentation that matches the code running there.
+
+    Carries an action like any other route: the authorization hook denies anything that declares
+    none, so without this the docs are a 403 for everybody, admins included.
     """
     target = paths.DOCS_DIR
     if not (target / filename).is_file():

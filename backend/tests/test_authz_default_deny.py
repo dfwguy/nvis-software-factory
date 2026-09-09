@@ -146,9 +146,15 @@ def test_decorator_records_the_action_on_the_view():
 def test_every_route_declares_an_action(app_client):
     """The gate that keeps the whole design honest.
 
-    Walks every registered route in the real application. An endpoint added without an @action
-    decorator fails here rather than shipping. The bypass list is the only exemption, and it is
-    enumerated -- not pattern-matched.
+    Walks every registered route in the real application and asserts the one invariant that
+    decides whether a route is reachable at all: it either bypasses the authorization hook, or it
+    declares an action. A route doing neither is denied to everybody, admins included.
+
+    Asked via ``request_hook.needs_session`` rather than against a hand-kept exemption set. The
+    previous version of this test listed ``serve_docs`` as a static fallback that legitimately had
+    no action -- but ``/docs`` is not on the bypass list, so it went through the hook and 403'd for
+    every user, and this test passed the whole time. An exemption list is a second copy of the
+    rule, and the copy is what goes stale.
     """
     import authz
     from audit import request_hook
@@ -157,21 +163,33 @@ def test_every_route_declares_an_action(app_client):
     undeclared: list[str] = []
 
     for rule in app.url_map.iter_rules():
-        view = app.view_functions.get(rule.endpoint)
-        if authz.action_of(view):
-            continue
-        # Static fallbacks and the sign-in endpoints legitimately have no action.
         path = str(rule.rule)
-        if path.startswith(request_hook.bypass_prefixes()):
+        if not request_hook.needs_session(path):
             continue
-        if rule.endpoint in {"serve_spa", "serve_spa_asset", "serve_docs", "static"}:
+        if authz.action_of(app.view_functions.get(rule.endpoint)):
             continue
         undeclared.append(f"{rule.endpoint} ({path})")
 
     assert not undeclared, (
-        "these endpoints declare no @action and are therefore denied to everyone:\n  "
-        + "\n  ".join(undeclared)
+        "these routes are subject to authorization but declare no @action, so they are denied "
+        "to everyone:\n  " + "\n  ".join(undeclared)
     )
+
+
+def test_the_documentation_is_reachable_by_a_viewer(app_client):
+    """A regression test for a specific 403.
+
+    Named for the symptom rather than the mechanism, because the mechanism is not what anyone
+    reports: they report that the docs link in the sidebar is broken.
+    """
+    import authz
+    from authz import Principal, Role
+
+    app = app_client.application
+    view = app.view_functions["serve_docs"]
+
+    assert authz.action_of(view) == "docs:read"
+    assert authz.decide(Principal(subject="someone", roles={Role.VIEWER}), "docs:read").allowed
 
 
 def test_bypass_list_entries_all_resolve(app_client):
