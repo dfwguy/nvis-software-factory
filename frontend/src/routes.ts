@@ -65,6 +65,23 @@ export const crosswalkPath = (system: string) =>
   `${CONTRACT_PATH}/crosswalk/${encodeURIComponent(system)}`;
 export const pillarPath = (id: string) => `${GOLDEN_PATH}/${encodeURIComponent(id)}`;
 
+/**
+ * Resolve a link written inside a `standards/` Markdown file to a route in this application.
+ *
+ * Those files cross-reference each other by repository path, because on disk that is what they
+ * are: `standards/README.md` links to `pillars/durability.md`. The same pillar is served here at
+ * `/golden-path/durability`, so the two are one thing addressed two ways, and this is the only
+ * place that needs to know it. Without this the reader sees literal `[label](pillars/x.md)`.
+ *
+ * Deliberately narrow: it matches the `pillars/` prefix and nothing else, so a future link to
+ * some other document is left as text rather than silently pointed at a route that does not
+ * exist. Returns null when it does not recognise the target.
+ */
+export function resolveStandardsLink(href: string): string | null {
+  const match = /^(?:\.{1,2}\/)*pillars\/([A-Za-z0-9._-]+)\.md$/.exec(href);
+  return match ? `#${pillarPath(match[1])}` : null;
+}
+
 export const ROUTES: RouteDef[] = [
   {
     viewId: "repositories",

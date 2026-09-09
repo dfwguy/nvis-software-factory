@@ -23,7 +23,7 @@ import { ErrorBanner, Loading, Page, SectionHeading } from "../components/Feedba
 import { DetectorTag, SeverityTag } from "../components/labels";
 import { Markdown } from "../components/Markdown";
 import { useApi } from "../hooks/useApi";
-import { GOLDEN_PATH } from "../routes";
+import { GOLDEN_PATH, resolveStandardsLink } from "../routes";
 import { getPillar } from "../services/platform";
 
 export function PillarView() {
@@ -104,7 +104,7 @@ export function PillarView() {
           prompt gives the model. A reader who disagrees with a judgement can read exactly what
           the model was told. */}
       <Paper variant="outlined" sx={{ p: 3 }}>
-        <Markdown source={pillar.body} />
+        <Markdown source={pillar.body} resolveLink={resolveStandardsLink} />
       </Paper>
     </Page>
   );

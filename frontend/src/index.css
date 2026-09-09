@@ -105,11 +105,39 @@ body {
 
 /* Rendered Markdown coming from the standards files and the model's prose. Scoped to this class
    so it cannot leak into the application chrome. */
+
+/*
+ * Kaizen's preflight resets `h1..h6 { font-size: inherit; font-weight: inherit }` and
+ * `ol, ul, menu { list-style: none }`. That is right for an application shell, where a heading
+ * element is chosen for semantics and sized by the component rendering it -- but this block is a
+ * document, and the reset leaves it with headings indistinguishable from body copy and lists with
+ * no markers. The standards README rendered as one flat wall of 14px text for exactly that reason,
+ * which reads as a broken Markdown parser rather than as a stylesheet doing its job.
+ *
+ * So prose restores what the reset took, in Kaizen's steps. These sit a level below the
+ * SectionHeading above them (24px): a document heading inside a panel is subordinate to the
+ * section containing the panel, so the ladder is 18 / 16 / 14, not 24 / 18 / 16.
+ */
 .nvsf-prose h2,
 .nvsf-prose h3,
 .nvsf-prose h4 {
   margin: 1.4em 0 0.5em;
   line-height: 1.3;
+}
+
+.nvsf-prose h2 {
+  font-size: var(--text-18);
+  font-weight: var(--font-weight-bold);
+}
+
+.nvsf-prose h3 {
+  font-size: var(--text-16);
+  font-weight: var(--font-weight-bold);
+}
+
+.nvsf-prose h4 {
+  font-size: var(--text-14);
+  font-weight: var(--font-weight-semibold);
 }
 
 .nvsf-prose p,
@@ -118,8 +146,37 @@ body {
   margin: 0.6em 0;
 }
 
+.nvsf-prose ul,
+.nvsf-prose ol {
+  padding-inline-start: 1.5em;
+}
+
+.nvsf-prose ul {
+  list-style: disc;
+}
+
+.nvsf-prose ol {
+  list-style: decimal;
+}
+
 .nvsf-prose li {
   margin: 0.25em 0;
+}
+
+/*
+ * The same reset neutralises anchors: `a { color: inherit; text-decoration: inherit }`. Correct
+ * for a nav item that is an anchor only because it navigates, wrong inside a document -- with the
+ * standards cross-references now resolving to real routes, they were body text that happened to
+ * be clickable. Underlined as well as coloured, so the affordance does not rest on colour alone.
+ */
+.nvsf-prose a {
+  color: var(--text-color-accent-green);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.nvsf-prose a:hover {
+  color: var(--text-color-accent-green-strong);
 }
 
 .nvsf-prose code {

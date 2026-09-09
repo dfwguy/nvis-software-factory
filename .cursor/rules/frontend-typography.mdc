@@ -62,10 +62,20 @@ If text is too small, the fix is that a call site picked the wrong step. Find it
 A percentage on `html` is also how you take away a reader's own accessibility setting, and this
 app is text-heavy enough that someone will have one.
 
-## Three traps
+## Four traps
 
 These are recorded because each one cost real time, and each one disguises itself as a different
 problem.
+
+**Kaizen's preflight flattens semantic HTML, and rendered Markdown needs it back.** `base.css`
+resets `h1..h6 { font-size: inherit; font-weight: inherit }`, `ol, ul, menu { list-style: none }`
+and `a { color: inherit; text-decoration: inherit }`. That is right for an application shell,
+where a heading element is picked for semantics and sized by the component rendering it. Inside a
+document it is wrong, and it presents as a broken Markdown parser: the standards README rendered
+as a flat wall of 14px text with no bullets and no visible links, while the source was fine and
+the renderer was emitting correct `<h2>`, `<ul>` and `<a>` all along. `.nvsf-prose` in `index.css`
+restores all three, in Kaizen steps — and CI checks that it still does. Prose headings ladder
+18 / 16 / 14, one level below the `2xl` `SectionHeading` above them.
 
 **`body { font-size }` in `index.css` does nothing.** MUI's `<CssBaseline>` injects
 `body { ...typography.body1 }` into `<head>` at runtime, after the bundled stylesheet, so it wins

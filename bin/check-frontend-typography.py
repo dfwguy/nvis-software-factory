@@ -129,11 +129,43 @@ def text_containers_size_in_rem() -> list[Problem]:
     return problems
 
 
+def prose_restores_the_reset() -> list[Problem]:
+    """`.nvsf-prose` puts back what Kaizen's preflight strips.
+
+    `base.css` resets headings to `font-size: inherit`, lists to `list-style: none` and anchors to
+    `color: inherit`. Right for the shell, wrong for a document: rendered Markdown came out as a
+    flat wall of body text with no bullets and no visible links, which reads as a broken parser
+    rather than as a stylesheet, and sends you to debug the wrong file.
+    """
+    text = _css_without_comments()
+    if not text:
+        return []
+
+    required = {
+        r"\.nvsf-prose h2\s*\{[^}]*font-size": "heading sizing for `h2`",
+        r"\.nvsf-prose h3\s*\{[^}]*font-size": "heading sizing for `h3`",
+        r"\.nvsf-prose h4\s*\{[^}]*font-size": "heading sizing for `h4`",
+        r"\.nvsf-prose ul\s*\{[^}]*list-style": "list markers for `ul`",
+        r"\.nvsf-prose ol\s*\{[^}]*list-style": "list markers for `ol`",
+        r"\.nvsf-prose a\s*\{[^}]*color": "link colour",
+    }
+    problems: list[Problem] = []
+    for pattern, what in required.items():
+        if not re.search(pattern, text, re.DOTALL):
+            message = (
+                f"`.nvsf-prose` does not restore {what}. Kaizen's preflight resets it, so without "
+                f"this rendered Markdown loses the distinction entirely."
+            )
+            problems.append((INDEX_CSS, 0, message))
+    return problems
+
+
 CHECKS = (
     no_ten_pixel_text,
     no_dead_body_font_size,
     no_root_scaling,
     text_containers_size_in_rem,
+    prose_restores_the_reset,
 )
 
 

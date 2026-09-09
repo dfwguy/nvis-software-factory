@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../test/render";
 import { Markdown } from "./Markdown";
+import { resolveStandardsLink } from "../routes";
 
 describe("untrusted content", () => {
   it("renders a script tag as text, never as an element", () => {
@@ -104,6 +105,79 @@ describe("the supported subset", () => {
     expect(container.querySelector("code")?.textContent).toBe("pytest");
     expect(container.querySelector("strong")?.textContent).toBe("stop");
     expect(container.querySelector("em")?.textContent).toBe("any");
+  });
+
+  // Every file in standards/ is wrapped at 100 columns, so nearly every list item in the corpus
+  // has a continuation line. Parsed as a fresh paragraph, the item ends mid-sentence and the rest
+  // of it reappears below the list -- which is what the golden path page did.
+  it("keeps a wrapped list item as one item", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        source={
+          "- `prompts/` injects these files into the passes, so the model judges\n" +
+          "  a repository against the written standard.\n" +
+          "- `gen-docs-reference.py` renders the same files into the docs site."
+        }
+      />,
+    );
+
+    const items = [...container.querySelectorAll("li")];
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain("against the written standard");
+    // The continuation must not have escaped the list as its own paragraph.
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+  });
+
+  it("does not mistake an indented continuation for the end of an ordered list", () => {
+    const { container } = renderWithProviders(
+      <Markdown source={"1. first step that wraps\n   onto a second line\n2. second step"} />,
+    );
+
+    const items = [...container.querySelectorAll("ol li")];
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toBe("first step that wraps onto a second line");
+  });
+});
+
+describe("resolving links inside our own standards files", () => {
+  it("turns a repository-relative pillar link into a route", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        source="- [Durability](pillars/durability.md) — does the data survive a restart?"
+        resolveLink={resolveStandardsLink}
+      />,
+    );
+
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("#/golden-path/durability");
+    expect(link?.textContent).toBe("Durability");
+  });
+
+  it("leaves the same link as literal text when no resolver is supplied", () => {
+    // The default matters: model prose goes through this component too, and a fabricated link is
+    // exactly what a model produces confidently.
+    const { container } = renderWithProviders(
+      <Markdown source="[Durability](pillars/durability.md)" />,
+    );
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("[Durability](pillars/durability.md)");
+  });
+
+  it("declines targets it does not recognise instead of guessing a route", () => {
+    expect(resolveStandardsLink("pillars/durability.md")).toBe("#/golden-path/durability");
+    expect(resolveStandardsLink("./pillars/data-security.md")).toBe("#/golden-path/data-security");
+    expect(resolveStandardsLink("README.md")).toBeNull();
+    expect(resolveStandardsLink("../backend/app.py")).toBeNull();
+    expect(resolveStandardsLink("https://diataxis.fr/")).toBeNull();
+  });
+
+  it("still refuses a dangerous scheme a resolver hands back", () => {
+    const { container } = renderWithProviders(
+      <Markdown source="[click](anything)" resolveLink={() => "javascript:alert(1)"} />,
+    );
+
+    expect(container.querySelector("a")).toBeNull();
   });
 
   it("shows unsupported syntax as its literal text rather than dropping it", () => {

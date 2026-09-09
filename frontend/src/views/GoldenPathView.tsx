@@ -25,7 +25,7 @@ import { ErrorBanner, InfoBanner, Loading, Page, SectionHeading } from "../compo
 import { DetectorTag, SeverityTag } from "../components/labels";
 import { Markdown } from "../components/Markdown";
 import { useApi } from "../hooks/useApi";
-import { pillarPath } from "../routes";
+import { pillarPath, resolveStandardsLink } from "../routes";
 import { getStandards } from "../services/platform";
 
 export function GoldenPathView() {
@@ -61,7 +61,7 @@ export function GoldenPathView() {
 
       {data.overview && (
         <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-          <Markdown source={data.overview} />
+          <Markdown source={data.overview} resolveLink={resolveStandardsLink} />
         </Paper>
       )}
 
