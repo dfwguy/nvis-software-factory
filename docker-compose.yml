@@ -1,0 +1,87 @@
+# NVIS Software Factory — deployment on an ITSS VM.
+#
+#   cp .env.example .env && $EDITOR .env
+#   sudo mkdir -p /srv/nvsf/data && sudo chown 10001:10001 /srv/nvsf/data
+#   docker compose up -d
+#
+# ONE SERVICE, ON PURPOSE
+# -----------------------
+# No separate database container, no reverse proxy, no cache. State is SQLite in the bind-mounted
+# data directory, which is enough for a few dozen users and one fewer thing to operate. When it
+# stops being enough, the store layer is the seam to change -- not this file.
+#
+# THE DATA DIRECTORY IS A BIND MOUNT AND MUST STAY ONE
+# ----------------------------------------------------
+# `docker volume prune` removes unused named volumes without asking what is in them, and "unused"
+# includes "the container is currently being recreated". A host path cannot be pruned by accident,
+# is visible to `ls`, and is covered by whatever backs up the VM. This is the same class of
+# mistake as the incident that started this project: a routine operation on infrastructure, by
+# someone not thinking about your data, with no warning that data was involved.
+
+services:
+  factory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Stamped into image labels so `docker inspect` answers "what is deployed here".
+        NVSF_BUILD_SHA: ${NVSF_BUILD_SHA:-local}
+        NVSF_BUILD_TIME: ${NVSF_BUILD_TIME:-unknown}
+    image: nvis-software-factory:latest
+    container_name: nvsf
+
+    # unless-stopped, not always: after `docker compose stop` during maintenance, a host reboot
+    # should not quietly bring the service back while someone is halfway through something.
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    ports:
+      # Host port bound to all interfaces because this is the service. Bind to 127.0.0.1 here
+      # instead if you put a reverse proxy in front on the same host.
+      - "${NVSF_HOST_PORT:-8443}:${NVSF_PORT:-8000}"
+
+    volumes:
+      # The only writable path. See the header.
+      - ${NVSF_HOST_DATA_DIR:-/srv/nvsf/data}:${NVSF_DATA_DIR:-/data}
+      # Read-only: the app needs to read the certificate and has no business rewriting it.
+      - ${NVSF_HOST_TLS_DIR:-/etc/nvsf/tls}:/etc/nvsf/tls:ro
+
+    # Belt and braces with the Dockerfile's USER. If a scanner regex ever hits something that
+    # turns into code execution, the process cannot rewrite the application it will restart into.
+    read_only: true
+    tmpfs:
+      # gunicorn's worker heartbeat files, and the only scratch space anything needs.
+      - /dev/shm:size=64m
+      - /tmp:size=256m
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    # Sized for git clone plus several concurrent scans over text. The limit exists so that a
+    # pathological repository degrades one container rather than the VM.
+    mem_limit: 4g
+    pids_limit: 512
+
+    healthcheck:
+      # Repeated from the Dockerfile so that `docker compose ps` reports health even for an image
+      # pulled from a registry rather than built here. /api/health/live, not /api/health: the deep
+      # endpoint needs a session and would 403 forever. See the Dockerfile for the full argument.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${NVSF_PORT:-8000}/api/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        # Bounded, because the default is unbounded and an application logging every request will
+        # eventually fill the VM's root filesystem. That is an outage caused by observability,
+        # which is a particularly annoying way to have one.
+        max-size: "20m"
+        max-file: "5"

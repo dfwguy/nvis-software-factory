@@ -132,6 +132,9 @@ docs-build:
     # regenerates and diffs: a hand-edited generated page, or a schema change without a docs
     # rebuild, fails here rather than shipping a reference that lies about the product.
     - python bin/gen-docs-reference.py --check
+    # Diataxis is a structure, and a structure nothing enforces is a naming convention. Checks
+    # that every page declares a mode and that the mode matches the section it is filed under.
+    - python bin/check-docs-diataxis.py
     # -W: a warning in docs is a broken cross-reference or a file missing from the toctree, both of
     # which readers hit as a 404.
     - sphinx-build -W --keep-going -b html docs docs/_build/html
@@ -147,12 +150,35 @@ docker-build:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
+    # The image build is itself a test: the SPA stage runs `tsc -b`, and the docs stage runs
+    # sphinx with -W. A type error or a broken cross-reference fails here even if it somehow got
+    # past the lint and docs stages.
     - >
       /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --build-arg "NVSF_BUILD_SHA=${CI_COMMIT_SHORT_SHA}"
+      --build-arg "NVSF_BUILD_TIME=${CI_JOB_STARTED_AT}"
       --no-push
       --single-snapshot
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+compose-lint:
+  stage: build
+  image: docker:29-cli
+  script:
+    # `config` resolves interpolation and validates the schema. .env is gitignored, so the example
+    # stands in for it -- which also checks that .env.example is complete enough to render the
+    # compose file, rather than being a stale list of names.
+    - cp .env.example .env
+    - docker compose config > /dev/null
+    - rm -f .env
+    # Hardening that is easy to drop in a merge and expensive to notice: without read_only the
+    # container can rewrite the code it restarts into, and a named volume can be pruned away.
+    - grep -q 'read_only: true' docker-compose.yml
+    - grep -q 'no-new-privileges:true' docker-compose.yml
+    - >
+      grep -q 'NVSF_HOST_DATA_DIR' docker-compose.yml
+      || (echo "the data mount must be a host path, not a named volume" && exit 1)
