@@ -25,6 +25,19 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
+DETACH=0
+for arg in "$@"; do
+  case "$arg" in
+    -d|--detach) DETACH=1 ;;
+    -h|--help)
+      echo "usage: bin/run-local.sh [-d|--detach]"
+      echo "  runs in the foreground by default; Ctrl-C stops the server"
+      exit 0
+      ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
 ENV_FILE="${NVSF_ENV_FILE:-$REPO/.env}"
 PORT="${NVSF_PORT:-8000}"
 
@@ -79,7 +92,19 @@ mkdir -p "$NVSF_DATA_DIR"
 LOG="${NVSF_LOG_FILE:-/tmp/nvsf-local.log}"
 
 echo "starting on http://127.0.0.1:$PORT  (data: $NVSF_DATA_DIR, log: $LOG)"
-( cd backend && exec "$REPO/.venv/bin/gunicorn" --config gunicorn.conf.py app:app ) >"$LOG" 2>&1 &
+
+GUNICORN="$REPO/.venv/bin/gunicorn"
+if (( DETACH )); then
+  # A new session, not just `disown`. Detaching has to survive the caller's process group being
+  # torn down, and disown only removes the job from the shell's table -- the server still shares
+  # the group and dies with it. Two attempts at this looked exactly like a crash: a clean log
+  # ending mid-traffic with no error in it. macOS ships no setsid(1), so Python provides it.
+  ( cd backend && exec "$REPO/.venv/bin/python3" -c \
+      'import os, sys; os.setsid(); os.execv(sys.argv[1], sys.argv[1:])' \
+      "$GUNICORN" --config gunicorn.conf.py app:app ) >"$LOG" 2>&1 &
+else
+  ( cd backend && exec "$GUNICORN" --config gunicorn.conf.py app:app ) >"$LOG" 2>&1 &
+fi
 SERVER_PID=$!
 
 for _ in $(seq 1 40); do
@@ -118,4 +143,16 @@ else:
     print("           assessments will fail. This instance is serving, but it cannot do its job.")
 PY
 
-echo "pid $SERVER_PID — stop with: kill $SERVER_PID"
+# Foreground by default, because a backgrounded child dies with the shell that launched it. The
+# first version of this script returned here, and the server it had just declared ready was gone
+# as soon as the invoking shell exited -- which looks identical to a crash, except the log ends
+# mid-sentence with nothing wrong in it.
+if (( DETACH )); then
+  # Off the job table, so closing the terminal does not SIGHUP it.
+  disown "$SERVER_PID" 2>/dev/null || true
+  echo "pid $SERVER_PID (detached) — stop with: kill $SERVER_PID"
+else
+  echo "pid $SERVER_PID — Ctrl-C to stop"
+  trap 'kill "$SERVER_PID" 2>/dev/null || true; rm -f "$COOKIES"' INT TERM EXIT
+  wait "$SERVER_PID"
+fi
