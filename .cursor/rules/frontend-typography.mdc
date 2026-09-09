@@ -1,0 +1,91 @@
+---
+description: Kaizen type scale — the sizes to use, and the three traps that make font-size bugs look like something else
+globs: frontend/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Typography: use Kaizen's steps, at Kaizen's root
+
+Every size decision in this application is a choice among Kaizen's `--text-*` steps. There is no
+freehand `font-size`, and there is no global multiplier. The numbers below were measured from
+Kaizen's own documentation site, not inferred from the token names.
+
+## The steps
+
+`<Text kind="body/{weight}/{step}">` resolves to a `--text-*` token. The names are sizes, not
+opinions:
+
+| step  | px | `display/` variant |
+|-------|----|--------------------|
+| `xs`  | 10 | 36 |
+| `sm`  | 12 | 40 |
+| `md`  | 14 | 44 |
+| `lg`  | 16 | 50 |
+| `xl`  | 18 | 56 |
+| `2xl` | 24 | 64 |
+| `3xl` | 32 | — |
+
+Weights are `regular`, `semibold`, `bold`, `light`. `display/*` is its own scale and is for hero
+text only — a page title is `2xl` or `3xl`, not `display`.
+
+## What each step is for
+
+Measured from Kaizen's site, which is the reference this product is supposed to look like:
+
+- **`md` (14px)** — navigation, chrome, table cells, form controls. The workhorse. Kaizen's own
+  nav is 14px, and ours inherits it from their `VerticalNav`, so this one is already correct by
+  construction and must not be nudged.
+- **`lg` (16px)** — body copy that someone actually reads: finding details, remediation text,
+  panel descriptions. Prefer this over `md` whenever the text is a sentence rather than a label.
+- **`xl` (18px)** — the lede: the paragraph that introduces a page or a section.
+- **`2xl` / `3xl` (24 / 32px)** — section and page headings.
+- **`sm` (12px)** — metadata and micro-labels: timestamps, counts, badge text, helper text.
+
+Sections pair **`2xl` heading over `xl` lede**, which is what Kaizen's site does. Both halves
+move together: an 18px lede under an 18px heading is the same size twice, and it reads as one
+undifferentiated block rather than a heading and its introduction. `SectionHeading` in
+`components/Feedback.tsx` owns this pairing for all 29 sections — change it there, not per view.
+
+**`xs` (10px) is not used for text in this application.** It is below the floor for anything a
+person is expected to read, and it is checked in CI. Kaizen spends it on badge chrome; we do not
+have a case for it.
+
+## Do not scale the root
+
+`html` stays at the browser default. Raising it looks like it fixes "the text is too small" and
+does not, because it multiplies the parts that were already right along with the parts that were
+wrong. This was tried at 112.5% and made things worse in both directions at once: it pushed our
+navigation to 15.75px where Kaizen's is 14px, while prose was still 13.5px against Kaizen's 18px.
+
+If text is too small, the fix is that a call site picked the wrong step. Find it and change it.
+
+A percentage on `html` is also how you take away a reader's own accessibility setting, and this
+app is text-heavy enough that someone will have one.
+
+## Three traps
+
+These are recorded because each one cost real time, and each one disguises itself as a different
+problem.
+
+**`body { font-size }` in `index.css` does nothing.** MUI's `<CssBaseline>` injects
+`body { ...typography.body1 }` into `<head>` at runtime, after the bundled stylesheet, so it wins
+on order every time. A dead rule sat in that file for the life of the project. Editing a
+declaration that cannot take effect presents exactly as a stylesheet-order problem, which sends
+you off to reorder imports and add override files — none of which can work either, because the
+layer that wins is injected later than all of them.
+
+**Fixed pixel widths on anything that holds text.** A drawer, a card, a column declared as `248`
+stays 248px while the text inside it grows with the reader's font size, so labels truncate inside
+a container with room to spare. Widths that bound text are `rem`. `DRAWER_WIDTH_OPEN` is
+`"15.5rem"`, not `248`, for this reason.
+
+**Kaizen components that pin their own width.** `.nv-vertical-nav-root` ships with
+`width: 240px`, which fought the Drawer containing it — two owners for one width, and the smaller
+one clipped the labels. `index.css` releases it to `width: 100%`. Expect more of these; the fix is
+to give the container sole ownership rather than to match the magic number.
+
+## Checking your work
+
+Do not judge type size from a screenshot — they get downscaled and everything looks fine. Measure
+the computed styles in a real browser. `bin/check-frontend-typography.py` enforces the mechanical
+rules above in CI, but it cannot tell you that a paragraph should have been `lg`.

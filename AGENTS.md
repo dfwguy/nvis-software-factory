@@ -36,6 +36,9 @@ it here.
 - @.cursor/rules/docs-diataxis.mdc — the Diátaxis compass as an authoring test, per page
 - @.cursor/rules/contracts-nrm.mdc — editing NRM schemas and crosswalks without breaking consumers
 - @.cursor/rules/frontend.mdc — React 19 / Kaizen-first frontend conventions
+- @.cursor/rules/frontend-typography.mdc — **read before sizing any text.** Kaizen's measured type
+  scale, which step to use where, and the three traps that make a font-size bug look like a
+  stylesheet-order bug. Enforced by `bin/check-frontend-typography.py`
 
 ## Notes
 

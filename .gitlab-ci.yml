@@ -58,6 +58,10 @@ python-lint:
     - ruff check backend/ bin/
     - pylint --recursive=y backend
     - bash scripts/check_no_secrets_in_git.sh
+    # Lives in the Python job because it is a Python script and the Node image has no interpreter;
+    # it reads frontend/src and needs no node_modules. Catches the type-scale regressions that
+    # cost the most to diagnose, because each one presents as a different problem than it is.
+    - python bin/check-frontend-typography.py
 
 typescript-lint:
   stage: lint

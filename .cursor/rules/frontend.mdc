@@ -26,6 +26,10 @@ the CDN path to `./fonts/`.
 Reach for a Kaizen class before an MUI component, and an MUI component before writing CSS. The
 NVIDIA green (`#76B900`) lives in `theme.ts`; do not hardcode it anywhere else.
 
+**Text sizing has its own rule: @frontend-typography.mdc.** Read it before you set a size. Which
+Kaizen step goes where is measured rather than guessed, and the failure modes are unintuitive
+enough that three separate attempts to fix them here made the problem worse.
+
 ## Routing
 
 `HashRouter`, not `BrowserRouter`. The SPA is served by Flask from a static directory, and hash

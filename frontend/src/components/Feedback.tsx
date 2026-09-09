@@ -56,11 +56,15 @@ export function SectionHeading({
         flexWrap: "wrap",
       }}
     >
+      {/* 24 over 18, which is the pairing Kaizen's own site uses for a section heading and the
+          paragraph introducing it. The heading has to move with the detail: an 18px lede under an
+          18px heading is the same size twice and reads as one undifferentiated block, which is
+          how this app looked when every section was 18 over 14. */}
       <Box sx={{ minWidth: 0 }}>
-        <Text kind="body/bold/xl">{title}</Text>
+        <Text kind="body/bold/2xl">{title}</Text>
         {detail && (
           <Text
-            kind="body/regular/md"
+            kind="body/regular/xl"
             style={{ color: "var(--text-color-secondary)", display: "block", marginTop: 4 }}
           >
             {detail}
