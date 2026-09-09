@@ -1,0 +1,71 @@
+# The site structure, and the only place it is declared.
+#
+# sphinx-external-toc rather than per-page toctrees: with `external_toc_exclude_missing: false`
+# in conf.py, a page that exists but is listed nowhere is a build failure. That is the check that
+# stops a docs site accumulating pages reachable only by search.
+#
+# The four captioned groups are the Diataxis modes, and they are not a naming convention -- a page
+# in the wrong one answers a question the reader was not asking. See https://diataxis.fr/.
+root: index
+
+subtrees:
+  - caption: Tutorials — learning by doing
+    entries:
+      - file: tutorials/assess-your-first-repository
+        title: Assess your first repository
+      - file: tutorials/describe-a-rack-in-nrm
+        title: Describe a rack in NRM
+
+  - caption: How-to guides — getting something done
+    entries:
+      - file: how-to/map-your-export-to-the-nvis-resource-model
+        title: Map your export to NRM
+      - file: how-to/add-an-analyzer-check
+        title: Add an analyzer check
+      - file: how-to/propose-a-contract-change
+        title: Propose a contract change
+      - file: how-to/deploy-on-an-itss-vm
+        title: Deploy on an ITSS VM
+
+  - caption: Reference — the machinery, described
+    entries:
+      - file: reference/index
+        title: Overview
+      - file: reference/nrm/index
+        title: NVIS Resource Model
+        entries:
+          - file: reference/nrm/resource
+          - file: reference/nrm/resource-type
+          - file: reference/nrm/location
+          - file: reference/nrm/port
+          - file: reference/nrm/link
+          - file: reference/nrm/domain
+          - file: reference/nrm/cooling-path
+      - file: reference/crosswalks
+        title: Crosswalks
+      - file: reference/pillars/index
+        title: Quality pillars
+        entries:
+          - file: reference/pillars/durability
+          - file: reference/pillars/data-security
+          - file: reference/pillars/reliability
+          - file: reference/pillars/scalability
+          - file: reference/pillars/testability
+          - file: reference/pillars/observability
+          - file: reference/pillars/contract-conformance
+          - file: reference/pillars/provenance
+      - file: reference/api
+        title: REST API
+      - file: reference/configuration
+        title: Configuration
+
+  - caption: Explanation — why it is like this
+    entries:
+      - file: explanation/the-reboot-that-lost-the-data
+        title: The reboot that lost the data
+      - file: explanation/why-contracts-and-why-now
+        title: Why contracts, and why now
+      - file: explanation/why-the-llm-is-required-but-never-authoritative
+        title: Why the LLM is required
+      - file: explanation/why-nautobot-is-the-crosswalk-target
+        title: Why Nautobot is the target
