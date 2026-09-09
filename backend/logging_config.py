@@ -185,4 +185,17 @@ def set_correlation_id(value: str) -> contextvars.Token[str]:
 
 
 def reset_correlation_id(token: contextvars.Token[str]) -> None:
-    correlation_id.reset(token)
+    """Restore the previous correlation id, tolerating a token that was already spent.
+
+    The caller is expected to reset each token once, and does. This still swallows the error,
+    because of where it runs: request teardown, which for a streaming response executes after the
+    response body is already on the wire. An exception raised there cannot become a 500 -- the
+    status line is long gone -- so it kills the connection mid-body instead, and the client throws
+    away a payload that was completely intact. Trading a correlation id for a truncated response
+    is a bad trade in every case, so it is not offered.
+    """
+    try:
+        correlation_id.reset(token)
+    except (RuntimeError, ValueError):
+        # Belongs to another context, or already spent. Neither is worth a broken response.
+        correlation_id.set("-")

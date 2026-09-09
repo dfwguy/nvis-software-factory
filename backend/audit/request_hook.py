@@ -185,7 +185,20 @@ def install(app: Flask) -> None:
 
     @app.teardown_request
     def _reset_correlation(_exc: BaseException | None) -> None:
-        token = getattr(g, "correlation_token", None)
+        # `pop`, not `getattr`: teardown can run more than once for a single request, and a
+        # contextvars.Token may be reset exactly once.
+        #
+        # A streaming response is the case that does it. Flask keeps the request context alive
+        # until the generator is drained, so teardown fires when the view returns and again when
+        # the body finishes. The second reset raised RuntimeError from inside the WSGI iterable,
+        # which no error handler covers -- the status line and every byte of the payload had
+        # already gone out, so the server could only drop the connection. Chunked responses lost
+        # their terminating chunk and the browser discarded the whole body as
+        # ERR_INCOMPLETE_CHUNKED_ENCODING.
+        #
+        # That truncated every compressed asset in the SPA, which is to say the entire
+        # application, while curl without an Accept-Encoding header saw nothing wrong.
+        token = g.pop("correlation_token", None)
         if token is not None:
             logging_config.reset_correlation_id(token)
 
