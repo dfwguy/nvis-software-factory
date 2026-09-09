@@ -412,7 +412,10 @@ def _run_architecture(
         assessment_id=assessment_id,
         pass_name=PASS_ARCHITECTURE,
         evidence_digest=evidence_hash,
-        require_keys=("summary",),
+        # These are the template's own keys. It asks for `purpose`, and has never asked for a
+        # `summary` -- requiring one failed every assessment at the first pass with the model
+        # blamed for a malformed reply, when the reply matched the prompt exactly.
+        require_keys=("purpose", "archetype"),
     )
     return data
 
@@ -434,18 +437,53 @@ def _architecture_summary(architecture: dict[str, Any]) -> str:
     """The architecture pass, condensed for reuse as context in later passes.
 
     Passing the whole object forward would spend a few thousand tokens per pillar restating what
-    the pillar prompt does not use. The summary and the stated purpose are what a pillar judgement
-    actually needs to avoid misreading a CLI as a service.
+    the pillar prompt does not use. What a pillar judgement needs is the purpose and shape of the
+    thing, so it does not misread a CLI as a service.
+
+    The keys here are the ones ``prompts/architecture.md`` actually asks for. They drifted once --
+    this read `summary`, `data_flow` and `state_management`, none of which the template has ever
+    emitted -- so the context handed to all eight pillar passes was silently near-empty. Keep the
+    two in step: the template is the contract, and it is versioned for that reason.
     """
-    parts = [str(architecture.get("summary", "")).strip()]
-    for key in ("purpose", "archetype", "data_flow", "state_management", "entry_points"):
-        value = architecture.get(key)
-        if not value:
+    parts: list[str] = []
+
+    for key in ("purpose", "archetype", "who_depends_on_it"):
+        if value := str(architecture.get(key) or "").strip():
+            parts.append(f"{key.replace('_', ' ').capitalize()}: {value}")
+
+    # State is what the durability pillar turns on, so it is worth spelling out rather than
+    # stringifying the dict and hoping the next model reads Python repr.
+    state = architecture.get("state")
+    if isinstance(state, dict):
+        exists = str(state.get("what_state_exists") or "").strip()
+        lives = str(state.get("where_it_lives") or "").strip()
+        if exists or lives:
+            parts.append(f"State: {exists or 'unspecified'} (lives: {lives or 'undetermined'})")
+
+    for key, fields in (
+        ("components", ("name", "role")),
+        ("entry_points", ("kind", "name")),
+        ("external_dependencies", ("what", "how")),
+    ):
+        items = architecture.get(key)
+        if not isinstance(items, list) or not items:
             continue
-        if isinstance(value, list):
-            value = "; ".join(str(v) for v in value[:8])
-        parts.append(f"{key.replace('_', ' ').title()}: {value}")
-    return "\n".join(p for p in parts if p)[:6000]
+        rendered = [
+            " — ".join(str(item.get(f) or "").strip() for f in fields if item.get(f))
+            if isinstance(item, dict)
+            else str(item)
+            for item in items[:8]
+        ]
+        if joined := "; ".join(r for r in rendered if r):
+            parts.append(f"{key.replace('_', ' ').capitalize()}: {joined}")
+
+    # Carried forward deliberately: a pillar must be able to tell "the evidence says no" from
+    # "the evidence does not say", and this is the only place that distinction survives.
+    unknowns = architecture.get("not_determinable")
+    if isinstance(unknowns, list) and unknowns:
+        parts.append("Not determinable: " + "; ".join(str(u) for u in unknowns[:8]))
+
+    return "\n".join(parts)[:6000]
 
 
 def _run_pillar(
