@@ -1,0 +1,25 @@
+# Coverage configuration for the Python backend.
+#
+# Tests are omitted from measurement. Including them inflates the total towards meaninglessness:
+# test files are executed by definition, so they report near-100% and drown the code under test.
+
+[run]
+source = backend
+branch = True
+omit =
+    backend/tests/*
+
+[report]
+# A file with no executable statements says nothing; hide it rather than pad the file list.
+skip_empty = True
+precision = 1
+exclude_also =
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    def __repr__
+    @(abc\.)?abstractmethod
+
+[html]
+directory = htmlcov
+title = nvis-software-factory backend coverage

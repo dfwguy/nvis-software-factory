@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/resource.schema.json",
+  "title": "Resource",
+  "description": "One physical or logical thing, from a transceiver to a rack. Deliberately ONE polymorphic entity rather than a table per kind: the alternative is thirty near-identical schemas whose shared fields drift, and a query that cannot ask 'what is in this rack' without a union across all of them.\n\nContainment is the primary relationship (`parent_id`), following OpenConfig's insight that a physical inventory is a tree before it is anything else. A transceiver's parent is a cage, whose parent is a switch, whose parent is a rack. Every other relation -- ports, links, cooling paths -- hangs off that tree.\n\nWhat a resource IS lives on its ResourceType. What makes it THIS one lives in `identifiers[]`.",
+
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+
+    "resource_type_id": {
+      "$ref": "common.schema.json#/$defs/uuid",
+      "description": "The catalog entry this is an instance of. Required: a resource whose type is unknown cannot be power-budgeted, cooled, cabled or validated, so admitting one would only defer the problem."
+    },
+
+    "parent_id": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+      "description": "The resource physically containing this one. Null only for a top-level resource, in practice a site. A cycle here is invalid; the schema cannot express that, so `backend/contracts/validate.py` checks it."
+    },
+
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "The name operators use. For a compute node this is the hostname, because that is what appears in every log, every Slurm queue and every escalation. Not unique by itself -- two sites may both have `gpu-001`."
+    },
+
+    "identifiers": {
+      "type": "array",
+      "description": "Every known real-world name for this resource. Reconciliation matches on ANY member, which is what lets a record built from a packing list (SERIAL) merge with the same unit discovered over the fabric (IB_GUID) once one system reports both.\n\nEmpty is legal but weak: a resource with no identifiers can never be reconciled with a discovered one, so an inventory built entirely without them will duplicate itself on first discovery.",
+      "items": { "$ref": "common.schema.json#/$defs/identifier" },
+      "maxItems": 64
+    },
+
+    "location_id": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+      "description": "Where it is. Usually set only on rack-level and above, with everything inside inheriting through `parent_id` -- storing a full location on every transceiver is denormalization that goes stale the first time a tray moves."
+    },
+
+    "domain_id": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+      "description": "The logical grouping this participates in: a compute domain, an IB fabric, an NVLink domain, a power zone."
+    },
+
+    "part_location": {
+      "$ref": "common.schema.json#/$defs/part_location",
+      "description": "Position within the parent. This plus `parent_id` is the full physical address, so no path syntax needs inventing."
+    },
+
+    "lifecycle": { "$ref": "common.schema.json#/$defs/lifecycle" },
+
+    "observation": { "$ref": "common.schema.json#/$defs/observation" },
+
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "For consumables tracked in bulk rather than individually -- a bag of quick-disconnect gaskets. Anything with a serial should be its own record instead; a quantity above one means identity was given up, and it cannot be recovered later."
+    },
+
+    "external_refs": { "$ref": "common.schema.json#/$defs/external_refs" },
+    "labels": { "$ref": "common.schema.json#/$defs/labels" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "timestamps": { "$ref": "common.schema.json#/$defs/timestamps" },
+
+    "attributes": {
+      "type": "object",
+      "description": "Instance facts the model does not cover: a firmware version, a BIOS setting, a measured coolant flow. Type-level facts belong on ResourceType instead -- putting them here copies them onto every unit and guarantees they disagree.",
+      "additionalProperties": true
+    }
+  },
+
+  "required": ["id", "resource_type_id", "name"],
+  "additionalProperties": false
+}

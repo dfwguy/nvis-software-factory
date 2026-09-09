@@ -1,0 +1,228 @@
+# UFM / ibnetdiscover <-> NRM crosswalk.
+#
+# THE PRIMARY OBSERVED-STATE SOURCE for InfiniBand. Where Nautobot says what should be cabled, this
+# says what actually is. NRM's `observation: observed` records for an IB fabric come from here, and
+# the diff against the `expected` records from the P2P cabling file IS the fabric validation
+# report -- the thing an NVL72 bring-up actually delivers.
+#
+# Import-only throughout. UFM is a discovery and management system; NRM has nothing to tell it, and
+# a crosswalk that offered to write back would invite someone to try.
+#
+# UFM's link naming convention is where NRM's content-addressable link key comes from:
+# `<node>_<port>:<node>_<port>`. Adopting it rather than inventing one means an operator who knows
+# UFM can read an NRM link key without a translation table.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: ufm
+system_version: ">=6.15"
+role: discovery
+authority: |
+  Authoritative for OBSERVED InfiniBand topology and link state: which GUIDs exist, which ports
+  are up, what width and rate they negotiated, and what is cabled to what. Not authoritative for
+  asset identity, physical placement, or intent -- UFM knows a node by GUID and has no idea which
+  rack it is in.
+join:
+  nrm_field: "identifiers[format=IB_GUID].value"
+  system_field: node_guid
+  note: |
+    IB_GUID is an NVIS extension to Redfish's DurableNameFormat precisely because this join has no
+    standard format and it is the one every fabric validation depends on. Port-level records join
+    on port_guid against the Port entity's identifiers.
+
+entities:
+  - nrm_entity: resource
+    system_model: ibnetdiscover node / UFM /resources/systems
+    direction: import
+    note: |
+      A discovered node produces a Resource with observation=observed. Reconciliation against the
+      expected inventory happens on IB_GUID; where no expected record matches, the node is real and
+      unplanned, which is itself a finding worth reporting.
+    fields:
+      - nrm: name
+        system: node_description
+        direction: import
+        unreliable: true
+        note: |
+          node_description is operator-set and frequently the hostname, but it is not guaranteed
+          unique or even populated. Useful for a human-readable report, never as a join key --
+          that is what the GUID is for.
+      - nrm: "identifiers[format=IB_GUID].value"
+        system: node_guid
+        direction: import
+      - nrm: external_refs.ufm
+        system: system_id
+        direction: import
+      - nrm: lifecycle
+        system: severity
+        direction: import
+        transform: ufm_severity_map
+        values:
+          Info: active
+          Warning: degraded
+          Minor: degraded
+          Critical: degraded
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+    unmapped_nrm:
+      - field: resource_type_id
+        reason: |
+          UFM reports a device type string, not a catalog SKU. An importer must resolve it to an
+          existing ResourceType or leave the resource unresolved -- minting a ResourceType from a
+          discovery string would fill the catalog with near-duplicate junk entries.
+      - field: location_id
+        reason: |
+          UFM has no physical placement. Location comes from the expected inventory and is attached
+          during reconciliation, which is a large part of the value of doing the reconciliation.
+      - field: parent_id
+        reason: UFM's node list is flat; containment comes from the expected inventory.
+
+  - nrm_entity: port
+    system_model: ibnetdiscover port / UFM /resources/ports
+    direction: import
+    fields:
+      - nrm: name
+        system: port_number
+        direction: import
+        transform: ib_port_name
+      - nrm: resource_id
+        system: node_guid
+        direction: import
+        transform: resolve_by_ib_guid
+      - nrm: port_class
+        system: _constant
+        direction: import
+        transform: constant_infiniband
+      - nrm: "identifiers[format=IB_GUID].value"
+        system: port_guid
+        direction: import
+      - nrm: speed_gbps
+        system: active_speed / active_width
+        direction: import
+        transform: ib_rate_to_gbps
+        note: |
+          IB reports width and speed separately (4X NDR). The product is the usable figure, and it
+          is what a negotiated-rate check compares against the expected value.
+      - nrm: lanes
+        system: active_width
+        direction: import
+        transform: ib_width_to_lanes
+      - nrm: admin_state
+        system: logical_state
+        direction: import
+        transform: ib_state_to_admin
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+    unmapped_nrm:
+      - field: media
+        reason: |
+          UFM reports the cage type inconsistently across firmware versions. Media comes from the
+          ResourceType's port template, which is reliable.
+      - field: part_location
+        reason: No physical position information in UFM.
+
+  - nrm_entity: link
+    system_model: ibnetdiscover link / UFM /resources/links
+    direction: import
+    note: |
+      This is the entity the whole crosswalk exists for. An observed link here and an expected link
+      from the cabling file compute the same content-addressable key, so plan-versus-reality is a
+      set difference: missing-in-observed is an uncabled or dead link, missing-in-expected is a
+      miscable, and present-in-both-at-different-speeds is a marginal link.
+    fields:
+      - nrm: key
+        system: "source_port_node_description_port : dest_port_node_description_port"
+        direction: import
+        transform: link_key
+      - nrm: a_port_id
+        system: source_port_guid
+        direction: import
+        transform: resolve_port_by_ib_guid
+      - nrm: b_port_id
+        system: dest_port_guid
+        direction: import
+        transform: resolve_port_by_ib_guid
+      - nrm: link_class
+        system: _constant
+        direction: import
+        transform: constant_infiniband
+      - nrm: speed_gbps
+        system: active_speed / active_width
+        direction: import
+        transform: ib_rate_to_gbps
+      - nrm: operational_state
+        system: physical_state
+        direction: import
+        transform: ib_phys_state_map
+        values:
+          LinkUp: up
+          Polling: down
+          Disabled: down
+          PortConfigurationTraining: degraded
+          LinkErrorRecovery: degraded
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+      - nrm: cable.length_m
+        system: cable_length
+        direction: import
+        unreliable: true
+        note: Read from the cable EEPROM, which is populated by the vendor and sometimes wrong.
+      - nrm: cable.part_number
+        system: cable_pn
+        direction: import
+      - nrm: "cable.cable_type"
+        system: cable_type
+        direction: import
+    unmapped_nrm:
+      - field: supporting_link_id
+        reason: |
+          UFM sees the IB link, not the physical cartridge carrying it. Layering is established
+          during reconciliation against the expected inventory.
+
+  - nrm_entity: domain
+    system_model: UFM fabric / subnet
+    direction: import
+    fields:
+      - nrm: name
+        system: fabric_name
+        direction: import
+      - nrm: domain_class
+        system: _constant
+        direction: import
+        transform: constant_ib_fabric
+      - nrm: external_refs.ufm
+        system: subnet_prefix
+        direction: import
+    unmapped_nrm:
+      - field: owner
+        reason: |
+          UFM has no ownership concept. Owner is an NVIS fact and is the first thing an escalation
+          needs, so it is NRM-native.
+
+transforms:
+  constant_observed: 'Set observation to "observed". Everything from a discovery sweep is a measurement.'
+  constant_infiniband: 'Set the class field to "infiniband".'
+  constant_ib_fabric: 'Set domain_class to "ib_fabric".'
+  ib_port_name: 'Format the port number as the device names it, typically "Port N".'
+  ib_rate_to_gbps: |
+    Multiply lane count by per-lane rate: SDR 2.5, DDR 5, QDR 10, FDR 14, EDR 25, HDR 50, NDR 100,
+    XDR 200 Gb/s per lane. A 4X NDR link is 400.
+  ib_width_to_lanes: 'Parse "4X" to 4.'
+  ib_state_to_admin: 'Active or Initialize -> enabled; Down with a disabled physical state -> disabled.'
+  ib_state_map: Use the values table on the field.
+  ib_phys_state_map: Use the values table on the field.
+  ufm_severity_map: Use the values table on the field.
+  resolve_by_ib_guid: |
+    Look up the Resource whose identifiers contain this IB_GUID. Fail the record rather than
+    creating a placeholder -- a synthetic parent is indistinguishable from a real one on the next
+    import, and it will be reconciled against forever.
+  resolve_port_by_ib_guid: As resolve_by_ib_guid, against Port identifiers.
+  link_key: |
+    Call contracts.identity.link_key with both endpoints. Never construct the string by hand: the
+    lexical sort of the two terms is what makes an expected and an observed link collide.

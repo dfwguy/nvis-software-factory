@@ -1,0 +1,59 @@
+---
+description: Editing NRM schemas and crosswalks without breaking the teams that consume them
+globs: contracts/**
+alwaysApply: false
+---
+
+# NRM contract conventions
+
+`contracts/` is the deliverable, not supporting code. Other teams point their agents at these
+files. Treat every change as a published API change.
+
+## Identity: surrogate key plus reconciliation aliases
+
+- `id` is a minted UUIDv7. Opaque, sortable, globally unique. **Never** a serial number, never an
+  integer counter, never a path.
+- `identifiers[]` carries the real-world names, as `{durable_name, durable_name_format}` pairs
+  reusing Redfish's `DurableNameFormat` enum extended with `IB_GUID`, `GPU_UUID`, `NVLINK_GUID`,
+  `SERIAL`. This is how a Redfish walk, an `ibnetdiscover` dump, and `nvidia-smi` output all
+  reconcile onto the same object.
+- `(manufacturer, part_number, serial_number)` is the physical natural key, unique when present,
+  used for import dedup and RMA correlation. It is not the primary key, because serials get
+  mistyped, get replaced under RMA, and are occasionally duplicated by vendors.
+
+Do not mint `urn:nvis:...` identifiers. `nvis` is not a registered RFC 8141 namespace, so those
+strings would be non-conformant URNs. Identifiers are plain strings.
+
+## We are not a rival source of truth
+
+Nautobot is NVIDIA's source of record for asset management. NRM is a **profile with a crosswalk**,
+and `contracts/crosswalk/nautobot.yaml` is the primary mapping. The join is Nautobot's `resource_id`
+custom field, which NGC-CFA created expressly to hold foreign keys into external systems.
+
+Any change that would make NRM the authority on a field Nautobot already owns is going the wrong
+direction. Map to it instead.
+
+## Versioning
+
+The **whole contract** is versioned, not each entity: `contracts/nrm/v0.1/`. Per-entity versioning
+is what makes Redfish painful to consume — a resource at `v1_28_0` referencing `anyOf` across 24
+versioned files.
+
+Within a published version, only additive changes: new optional fields, new enum members at the end.
+Anything else means a new version directory. `expected` versus `observed` is a first-class
+distinction on every relation and must be preserved by any transform.
+
+## Crosswalks are data, so they are testable
+
+Mappings live as YAML, never as prose in a docs page. Every crosswalk must round-trip a fixture in
+`contracts/fixtures/` under test. When you add a mapping, add the fixture — an untested crosswalk is
+a guess with a filename.
+
+## Regenerate after editing
+
+Reference docs and the agent pack are generated from these files:
+
+```
+python bin/gen-docs-reference.py        # docs/reference/generated/
+python bin/gen-docs-reference.py --check  # what CI runs
+```

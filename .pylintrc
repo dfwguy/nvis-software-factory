@@ -1,0 +1,45 @@
+# Pylint configuration for nvis-software-factory.
+#
+# Pylint runs ALONGSIDE ruff, not instead of it. Ruff is fast, runs on every file, and already owns
+# imports, unused names, blind excepts, comprehensions and the pyupgrade/bugbear families. Pylint is
+# here only for what it can see that ruff cannot, because it needs the whole-program view astroid
+# builds:
+#
+#   duplicate-code (R0801)  cross-module copy-paste. The scanners in backend/factory/scanners/ all
+#                           share a shape, and this is the check that tells us when that shape
+#                           should become a base class instead of eight near-copies.
+#
+#   reimported (W0404)      the same object bound twice in one module.
+
+[MAIN]
+# backend/ is a flat module namespace (modules import each other as top-level names), so astroid
+# needs it on the path to resolve them.
+init-hook = 'import sys; sys.path.insert(0, "backend")'
+ignore = tests
+
+# Single-process ON PURPOSE. duplicate-code is computed from a cross-module index that pylint does
+# not share correctly between workers -- with jobs > 1 it silently under-reports, which is the worst
+# failure mode for a check whose whole job is to notice something.
+jobs = 1
+persistent = no
+
+[MESSAGES CONTROL]
+# Start from nothing and name what we want. Enable-everything-and-subtract means every pylint
+# upgrade silently adds checks.
+disable = all
+
+enable =
+    duplicate-code,
+    reimported,
+
+[SIMILARITIES]
+# Pylint's default of 4 lines reports mostly unavoidable shapes (a 4-line dict literal, an
+# except/return pair). 20 gates on real copy-paste without arguing about idiom.
+min-similarity-lines = 20
+ignore-comments = yes
+ignore-docstrings = yes
+ignore-imports = yes
+ignore-signatures = yes
+
+[REPORTS]
+score = no

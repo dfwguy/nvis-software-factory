@@ -1,0 +1,37 @@
+# Runtime dependencies. Development and CI tooling lives in requirements-dev.txt.
+#
+# Upper bounds are deliberate: an unbounded range means a major release can change behaviour on the
+# next rebuild, and "it worked last month" stops being a reproducible claim (provenance P5).
+
+flask>=3.0,<4
+gunicorn>=22.0,<24
+
+# Response compression. The assessment bundle and the contract bundle are both large JSON payloads
+# fetched over a tunnel; this is a real win, not a micro-optimization.
+flask-compress>=1.14,<2
+brotli>=1.1,<2
+
+# The contract front's adjudicator. jsonschema is the ONLY thing that decides whether a payload
+# conforms -- never the model. Draft 2020-12 support is why the floor is 4.23.
+#
+# The [format-nongpl] extra is NOT optional polish. Without it, jsonschema treats `format` as an
+# annotation and silently accepts `"collected_at": "yesterday"` against `"format": "date-time"` --
+# an assertion that looks enforced, is published as enforced, and does nothing. The extra installs
+# the validators that make it real, and `contracts.loader.self_check` fails startup if they are
+# missing so this cannot regress quietly. "nongpl" pins the permissively licensed set.
+jsonschema[format-nongpl]>=4.23,<5
+
+# Crosswalk files and pillar frontmatter.
+pyyaml>=6.0,<7
+
+# HTTP client for the LLM endpoint and OIDC discovery. Note: every call site must pass an explicit
+# timeout -- requests has NO default, so a bare get() can hang a worker until the TCP stack gives
+# up. Reliability criterion R1, applied to ourselves.
+requests>=2.32,<3
+
+# ID token validation. Verification must pin algorithms=[...]: PyJWT otherwise trusts the token's
+# own `alg` header, which is the alg:none and RS256->HS256 confusion attack.
+PyJWT>=2.9,<3
+
+# JWKS signature verification for the above, and the session cookie signing key.
+cryptography>=43.0,<50

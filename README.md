@@ -1,93 +1,127 @@
 # NVIS Software Factory
 
+Two problems, one repository.
 
+**Software quality.** Every SA builds their own tooling, runs it wherever they like, and
+increasingly writes it with an AI agent. That gets results, and it also produces duplicated data,
+several competing sources of truth, and software that has never been asked whether it survives a
+restart. One team lost everything they had when someone restarted the Docker service, because their
+state was in memory in a container — not recoverable from logs, not backed up, gone. Vibe coding is
+excellent for a prototype and insufficient for something another team depends on.
+
+**Interchange.** AIC, Ethernet, InfiniBand and OVA each model the same racks, nodes, switches and
+transceivers differently, so nothing exports cleanly into anything else.
+
+The Software Factory addresses both. Point it at a GitLab or GitHub repository and it clones the
+code, gathers deterministic evidence about it, reasons over that evidence with an LLM, and produces
+documents an SA can feed straight back into their own agent to fix what it found. Alongside that it
+publishes the **NVIS Resource Model** — a small, versioned data contract covering every unit of
+resource from a transceiver to a rack, machine-readable, and crosswalked to the systems NVIDIA
+already governs.
+
+## AI-first, but the model is never the authority on facts
+
+The LLM is a required stage. The app will not start without one, and there is no degraded mode that
+quietly emits a weaker report when the endpoint is down — a run fails and is retried instead.
+
+That makes the separation of duties the important part of the design:
+
+- **Scanners own facts.** Deterministic checks produce findings with `file:line` citations.
+- **The model owns judgement and narrative.** It weighs findings in context, spots what the
+  scanners cannot see, and writes the remediation plan.
+- **The ratchet only turns one way.** The model may escalate a deterministic finding or add its
+  own. It may not downgrade, waive, or explain away a finding a scanner produced, and it never
+  decides schema conformance — `jsonschema` does.
+
+Without that, a tool built to catch unchecked AI output would itself be unchecked AI output.
+
+Every run records the model id, prompt template version, evidence hash and token usage, so any
+assessment can be reproduced and any two can be diffed.
+
+## The contract
+
+The NVIS Resource Model is a **profile with a crosswalk**, not a new source of truth. Nautobot is
+already NVIDIA's source of record for asset management, so NRM maps onto it through the
+`resource_id` custom field rather than competing with it.
+
+Seven entities, one JSON Schema 2020-12 file each, the whole contract versioned together:
+`Resource`, `ResourceType`, `Location`, `Port`, `Link`, `Domain`, `CoolingPath`. Identity is an
+opaque UUIDv7 plus an `identifiers[]` array of Redfish-style durable names, which is how a Redfish
+walk, an `ibnetdiscover` dump and `nvidia-smi` output reconcile onto the same object. Crosswalks
+ship as tested YAML for Nautobot, Redfish, UFM, `bcm-netautogen` and DCGM.
+
+Teams consume it over HTTP — `/api/contracts/bundle` for everything in one fetch,
+`/api/contracts/agent-pack.md` as a prompt pack — or through the MCP server.
 
 ## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+```bash
+git clone https://gitlab-master.nvidia.com/nvis-ova/nvis-software-factory.git
+cd nvis-software-factory
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+cp .env.example .env                      # compose settings
+cp factory.toml.example factory.toml      # app configuration
+$EDITOR factory.toml                      # set the LLM endpoint; the app will not start without it
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/nvis-ova/nvis-software-factory.git
-git branch -M main
-git push -uf origin main
+docker compose up --build
 ```
 
-## Integrate with your tools
+Then open `https://localhost:8443`. The full walk-through, including what to do before you have an
+OIDC client registered, is in the docs.
 
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/nvis-ova/nvis-software-factory/-/settings/integrations)
+## Documentation
 
-## Collaborate with your team
+Built with Sphinx and served by the container at `/docs`. Organized by
+[Diátaxis](https://diataxis.fr/):
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+- **Tutorials** — learning by doing. Start with "Assess your first repository".
+- **How-to guides** — recipes for a specific goal, for readers already at work.
+- **Reference** — austere and factual. The NRM schema reference, the REST API, the pillar catalog
+  and the configuration reference are all generated from source, so they cannot drift.
+- **Explanation** — the why. Including why Nautobot is the crosswalk target and not a rival model,
+  and a write-up of the reboot that lost the data.
 
-## Test and Deploy
+Build locally:
 
-Use the built-in continuous integration in GitLab.
+```bash
+pip install -r docs/requirements.txt
+sphinx-build -W -b html docs docs/_build/html
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## Repository layout
 
-***
+- `backend/` — Flask application. `factory/` is the assessment engine, `contracts/` serves the NRM,
+  `store/` is SQLite persistence, `authn/` `authz/` `audit/` are the security surfaces.
+- `contracts/` — the deliverable: NRM schemas, crosswalks, fixtures.
+- `standards/` — the eight quality pillars. Read by both the LLM prompts and the docs site, so
+  there is exactly one definition of the baseline.
+- `frontend/` — React 19 SPA.
+- `docs/` — Sphinx source.
+- `var/` — runtime state, bind-mounted, never committed.
 
-# Editing this README
+## Development
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
-## Suggestions for a good README
+pytest backend/tests --cov --cov-config=.coveragerc --cov-report=json:coverage.json
+python bin/check-coverage-floor.py coverage.json
+ruff check backend/ && pylint --recursive=y backend
+bash scripts/check_no_secrets_in_git.sh
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+cd frontend && npm ci && npm run dev
+```
 
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+The coverage floor starts at 60% per file with an empty exception list. That is only possible in a
+greenfield repo, and it is worth protecting: adding to the list requires editing
+`bin/check-coverage-floor.py` in a merge request, which makes new debt a visible decision rather
+than a drift.
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Conventional commits (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`). Reference issues as
+`#<number>`. Small, focused merge requests.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+If you are an AI agent working in this repository, read [AGENTS.md](AGENTS.md) first — the
+authoritative conventions live in `.cursor/rules/*.mdc`.

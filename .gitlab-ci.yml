@@ -1,13 +1,158 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
-# Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/pipeline/#customization
-# Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
-# Container Scanning customization: https://docs.gitlab.com/ee/user/application_security/container_scanning/#customizing-the-container-scanning-settings
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
-stages:
-- test
-sast:
-  stage: test
+# CI for nvis-software-factory.
+#
+# Order is deliberate: lint -> test -> docs -> build. Everything that can fail cheaply fails first.
+#
+# A note on what is NOT allow_failure here. The sibling project learned that an allow_failure lint
+# job sat red at ~310 findings for months without anyone noticing, because a yellow pipeline reads
+# as a green one. Every job below gates. If a job needs to not gate, it should not be in the
+# pipeline yet.
+
 include:
-- template: Security/SAST.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - scheduler_failure
+      - api_failure
+      - unknown_failure
+
+stages:
+  - lint
+  - test
+  - docs
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm-cache"
+  PYTHON_IMAGE: "python:3.12-slim"
+  NODE_IMAGE: "node:24-slim"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ─── Lint ────────────────────────────────────────────────────────────────────
+
+python-lint:
+  stage: lint
+  image: $PYTHON_IMAGE
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths: [.pip-cache/]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+  script:
+    # Pinned deliberately, and kept in step with backend/requirements-dev.txt. Unpinned, every ruff
+    # release can widen the default rule set under us and turn a green branch red for reasons the
+    # author cannot reproduce locally.
+    - pip install -q ruff==0.16.0 pylint==4.0.7
+    # backend/tests IS linted. Excluding tests is how a project accumulates a hundred findings
+    # nobody can face fixing; starting with the gate on costs nothing today.
+    - ruff check backend/ bin/
+    - pylint --recursive=y backend
+    - bash scripts/check_no_secrets_in_git.sh
+
+typescript-lint:
+  stage: lint
+  image: $NODE_IMAGE
+  cache:
+    key: npm-${CI_COMMIT_REF_SLUG}
+    paths: [frontend/node_modules/, .npm-cache/]
+  script:
+    - cd frontend
+    - npm ci --ignore-scripts
+    - npx tsc -b --noEmit
+    # Hard gate. Warnings do not fail the job; errors are something this commit introduced.
+    - npm run lint
+
+# ─── Test ────────────────────────────────────────────────────────────────────
+
+python-test:
+  stage: test
+  image: $PYTHON_IMAGE
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths: [.pip-cache/]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+  script:
+    - pip install -q -r backend/requirements.txt -r backend/requirements-dev.txt
+    # Does the COMMITTED tree still generate the same config example? A stale example drifts from
+    # the code that reads it, and the drift is invisible until someone copies it.
+    - python bin/gen-factory-example.py --check
+    # Same argument for the NVL72 reference fixture: it is the round-trip test's input and the
+    # worked example teams read, so a hand-edit that the generator would not produce is drift.
+    - python bin/gen-nvl72-fixture.py --check
+    - >
+      python -m pytest backend/tests
+      --cov --cov-config=.coveragerc
+      --cov-report=json:coverage.json --cov-report=term
+      --junitxml=report.xml
+    - python bin/check-coverage-floor.py coverage.json
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 1 week
+
+frontend-test:
+  stage: test
+  image: $NODE_IMAGE
+  cache:
+    key: npm-${CI_COMMIT_REF_SLUG}
+    paths: [frontend/node_modules/, .npm-cache/]
+  script:
+    - cd frontend
+    - npm ci --ignore-scripts
+    - npx vitest run --reporter=junit --outputFile=../report-frontend.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-frontend.xml
+    expire_in: 1 week
+
+# ─── Docs ────────────────────────────────────────────────────────────────────
+
+docs-build:
+  stage: docs
+  image: $PYTHON_IMAGE
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths: [.pip-cache/]
+  script:
+    - pip install -q -r docs/requirements.txt -r backend/requirements.txt
+    # Reference docs are generated from contracts/, standards/, openapi and config_registry. This
+    # regenerates and diffs: a hand-edited generated page, or a schema change without a docs
+    # rebuild, fails here rather than shipping a reference that lies about the product.
+    - python bin/gen-docs-reference.py --check
+    # -W: a warning in docs is a broken cross-reference or a file missing from the toctree, both of
+    # which readers hit as a 404.
+    - sphinx-build -W --keep-going -b html docs docs/_build/html
+  artifacts:
+    paths: [docs/_build/html]
+    expire_in: 1 week
+
+# ─── Build ───────────────────────────────────────────────────────────────────
+
+docker-build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - >
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --no-push
+      --single-snapshot
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

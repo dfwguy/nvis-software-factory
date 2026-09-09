@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/port.schema.json",
+  "title": "Port",
+  "description": "A termination point on a resource, in the RFC 8345 sense: the thing a Link attaches to. Ports are modelled separately from Links so that an uncabled port is still a fact -- 'this switch has sixteen OSFP cages and four are empty' is exactly what a bring-up needs to know, and a link-only model cannot say it.\n\n`port_class` spans network, PCIe, power, coolant and console on purpose. A coolant inlet and an OSFP cage have nothing physically in common, but they play the identical role in the topology graph, and one termination-point entity means reachability, expected-versus-observed and cable tracing work the same way for both. This is the IT/OT convergence, expressed in the data model rather than in a dashboard.",
+
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+
+    "resource_id": {
+      "$ref": "common.schema.json#/$defs/uuid",
+      "description": "The resource this port is on."
+    },
+
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Port name as the device reports it and as the label reads: `OSFP1`, `eth0`, `mlx5_0`, `INLET_A`. Unique within its resource."
+    },
+
+    "port_class": {
+      "type": "string",
+      "description": "What kind of connection terminates here. Closed list, because the class determines which validations apply and an unrecognized class would silently skip all of them.",
+      "enum": [
+        "ethernet",
+        "infiniband",
+        "nvlink",
+        "pcie",
+        "power",
+        "coolant",
+        "console",
+        "management",
+        "usb",
+        "other"
+      ]
+    },
+
+    "media": {
+      "type": "string",
+      "description": "Physical medium or connector. Needed because a cabling plan that matches port names but mismatches media is a plan that fails at install time.",
+      "enum": [
+        "osfp",
+        "qsfp112",
+        "qsfp56",
+        "qsfp28",
+        "sfp112",
+        "sfp56",
+        "sfp28",
+        "rj45",
+        "dac",
+        "aoc",
+        "mpo",
+        "lc",
+        "backplane",
+        "nvlink_cartridge",
+        "busbar",
+        "c13",
+        "c19",
+        "quick_disconnect",
+        "hose_barb",
+        "other"
+      ]
+    },
+
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Ordinal position, for ports whose name does not sort usefully. `OSFP10` sorts before `OSFP2` as a string, and a cabling report in that order is unusable."
+    },
+
+    "speed_gbps": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Configured or negotiated speed. On an `expected` record this is the design speed; on an `observed` record it is what the link actually came up at, and the difference is one of the most common real defects."
+    },
+
+    "lanes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32,
+      "description": "Lane count, for split or breakout ports."
+    },
+
+    "breakout_of": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+      "description": "The physical parent port, when this is one channel of a breakout. A 4x split OSFP is one physical cage and four logical ports, and both views have to exist: the cage is what gets cabled, the channels are what come up."
+    },
+
+    "part_location": {
+      "$ref": "common.schema.json#/$defs/part_location",
+      "description": "Where the cage or connector physically sits, for a port on a large chassis where the name alone does not locate it."
+    },
+
+    "identifiers": {
+      "type": "array",
+      "description": "Port-level identity. IB_GUID and MACAddress are the common cases, and they are what discovery output joins on.",
+      "items": { "$ref": "common.schema.json#/$defs/identifier" },
+      "maxItems": 16
+    },
+
+    "admin_state": {
+      "type": "string",
+      "enum": ["enabled", "disabled"],
+      "description": "Intended state. Separate from operational state, which is telemetry: a port that is administratively down is correct, and a monitoring system that conflates the two pages someone at 3am for a deliberate configuration."
+    },
+
+    "observation": { "$ref": "common.schema.json#/$defs/observation" },
+    "external_refs": { "$ref": "common.schema.json#/$defs/external_refs" },
+    "labels": { "$ref": "common.schema.json#/$defs/labels" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "timestamps": { "$ref": "common.schema.json#/$defs/timestamps" },
+
+    "attributes": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+
+  "required": ["id", "resource_id", "name", "port_class"],
+  "additionalProperties": false
+}

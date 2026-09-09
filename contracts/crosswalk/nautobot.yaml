@@ -1,0 +1,403 @@
+# Nautobot <-> NRM crosswalk.
+#
+# THE PRIMARY CROSSWALK. Nautobot is NVIDIA's source of record for asset management: the InfoSec
+# Asset Management Standard names it, NGC-CFA maintains the field-level population standard, and
+# DCEO's OpsTwin DCIM treats it as authoritative. NRM is therefore a PROFILE over Nautobot with a
+# normative mapping, not a rival inventory. Anywhere the two disagree about an asset, Nautobot is
+# right and NRM is stale.
+#
+# The join is bidirectional and already provided for: NGC-CFA created the `resource_id` custom
+# field on Nautobot objects expressly to hold foreign keys into external systems. NRM writes its
+# own `id` there and reads it back, so neither side needs to guess.
+#
+# Direction semantics:
+#   import  - Nautobot is authoritative; NRM follows.
+#   export  - NRM is authoritative; safe to write back.
+#   both    - either side may originate the value.
+# Anything an SA tool discovers that Nautobot has no field for is `export` at most, and usually
+# not mapped at all -- pushing observed fabric state into an asset system is how an asset system
+# becomes a monitoring system nobody trusts.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: nautobot
+system_version: ">=2.2"
+role: source_of_record
+authority: |
+  Authoritative for asset existence, ownership, lifecycle and physical placement. NOT authoritative
+  for observed topology, fabric state, or telemetry.
+join:
+  nrm_field: id
+  system_field: custom_fields.resource_id
+  note: |
+    NGC-CFA's population standard defines resource_id as the external-system foreign key. Writing
+    NRM's UUID there makes the join bidirectional without adding a field to either model.
+
+entities:
+  # ── ResourceType ──────────────────────────────────────────────────────────────────────────
+  - nrm_entity: resource-type
+    system_model: dcim.DeviceType
+    direction: import
+    note: |
+      Nautobot splits the catalog across DeviceType, ModuleType, RackType and InventoryItem.
+      NRM has one ResourceType with a `resource_class` discriminator, so the mapping is
+      many-to-one and `resource_class` is what records which Nautobot model it came from.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: manufacturer
+        system: manufacturer.name
+        direction: import
+      - nrm: model
+        system: model
+        direction: import
+      - nrm: part_number
+        system: part_number
+        direction: import
+      - nrm: u_height
+        system: u_height
+        direction: import
+      - nrm: is_full_depth
+        system: is_full_depth
+        direction: import
+      - nrm: weight_kg
+        system: weight
+        direction: import
+        transform: to_kg
+        note: Nautobot carries weight_unit separately; normalize to kilograms on import.
+      - nrm: datasheet_url
+        system: comments
+        direction: import
+        unreliable: true
+        note: |
+          Nautobot has no datasheet field, and in practice the URL lands in comments. Mapped so the
+          value is not lost, marked unreliable so no automated check depends on parsing it.
+      - nrm: labels
+        system: tags
+        direction: both
+        transform: tags_to_labels
+    unmapped_nrm:
+      - field: cooling
+        reason: |
+          Nautobot 4.7's liquid-cooling model covers cooling TOPOLOGY, not per-SKU cooling
+          requirements. Design flow and max inlet temperature come from the partner datasheet and
+          have no Nautobot home, so NRM is the source for them.
+      - field: port_templates
+        reason: |
+          Partially expressible as Nautobot InterfaceTemplate, but only for ethernet and IB.
+          Coolant and NVLink port templates have no equivalent, so mapping half of them would make
+          a generated port list silently incomplete. See the port entity below.
+      - field: power
+        reason: |
+          Nautobot models power ports and feeds, not nameplate SKU figures. TDP in particular is a
+          cooling-sizing input with no Nautobot field.
+
+  # ── Location ──────────────────────────────────────────────────────────────────────────────
+  - nrm_entity: location
+    system_model: dcim.Location
+    direction: import
+    note: |
+      Nautobot's Location is a recursive tree typed by LocationType, so site/room/row arrive as
+      ancestors rather than as fields. `flatten_ancestors` walks that tree; the reverse direction
+      requires the LocationTypes to already exist, which is why this is import-only.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: site
+        system: "ancestors[location_type=Site].name"
+        direction: import
+        transform: flatten_ancestors
+      - nrm: room
+        system: "ancestors[location_type=Room].name"
+        direction: import
+        transform: flatten_ancestors
+      - nrm: row
+        system: "ancestors[location_type=Row].name"
+        direction: import
+        transform: flatten_ancestors
+      - nrm: rack
+        system: rack.name
+        direction: import
+      - nrm: rack_unit
+        system: rack.position
+        direction: both
+      - nrm: rack_face
+        system: rack.face
+        direction: both
+      - nrm: power_zone
+        system: rack.power_panel.name
+        direction: import
+        unreliable: true
+        note: |
+          Approximate. Nautobot models PowerPanel per feed, and a rack may draw from more than one;
+          this takes the first. Adequate for grouping, not for a redundancy audit.
+    unmapped_nrm:
+      - field: coordinates
+        reason: Nautobot has no room-relative coordinate fields. NRM is the source.
+      - field: grid_reference
+        reason: No Nautobot field. Commonly a custom field per site, so not portable.
+
+  # ── Resource ──────────────────────────────────────────────────────────────────────────────
+  - nrm_entity: resource
+    system_model: dcim.Device
+    direction: both
+    note: |
+      Also maps from dcim.Module, dcim.InventoryItem and dcim.Rack depending on resource_class.
+      Device is the common case and the one this mapping is written against.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: name
+        system: name
+        direction: both
+      - nrm: resource_type_id
+        system: device_type.custom_fields.resource_id
+        direction: both
+      - nrm: parent_id
+        system: parent_bay.device.custom_fields.resource_id
+        direction: import
+        note: |
+          Nautobot expresses containment through DeviceBay for devices and through `device` for
+          modules and inventory items. NRM has one parent_id for all of them.
+      - nrm: location_id
+        system: location.custom_fields.resource_id
+        direction: both
+      - nrm: lifecycle
+        system: status.name
+        direction: both
+        transform: status_map
+        values:
+          planned: planned
+          staged: staged
+          active: active
+          failed: degraded
+          offline: offline
+          inventory: staged
+          decommissioning: decommissioned
+      - nrm: "identifiers[format=SERIAL].value"
+        system: serial
+        direction: both
+        note: |
+          Nautobot's flat `serial` becomes one member of NRM's identifiers array with
+          format SERIAL and scope set to the manufacturer, since serials are not globally unique.
+      - nrm: "identifiers[format=UUID].value"
+        system: asset_tag
+        direction: both
+        unreliable: true
+        note: |
+          Only when the asset tag is genuinely a UUID. Sites use asset_tag for barcode labels too,
+          so an importer must check the shape rather than assume it.
+      - nrm: external_refs.nautobot
+        system: id
+        direction: import
+        note: Nautobot's own primary key, so NRM can link back to the object.
+      - nrm: labels
+        system: tags
+        direction: both
+        transform: tags_to_labels
+      - nrm: domain_id
+        system: cluster.custom_fields.resource_id
+        direction: both
+        unreliable: true
+        note: |
+          Nautobot Cluster is virtualization-oriented. It fits a compute domain reasonably and an
+          IB fabric or NVLink domain not at all, so most Domain records have no Nautobot origin.
+    unmapped_nrm:
+      - field: observation
+        reason: |
+          THE significant gap, and the reason NRM exists as a profile rather than as a Nautobot
+          view. Nautobot records intent -- everything in it is `expected`. It has no way to say
+          "this is what ibnetdiscover actually saw", so plan-versus-reality cannot be expressed
+          there at all. Every observed record in NRM is NRM-native.
+      - field: part_location
+        reason: |
+          Nautobot DeviceBay position is coarser than Redfish PartLocation and cannot address a
+          transceiver inside a cage inside a tray.
+
+  # ── Port ──────────────────────────────────────────────────────────────────────────────────
+  - nrm_entity: port
+    system_model: dcim.Interface
+    direction: both
+    note: |
+      Nautobot splits terminations by kind: Interface (ethernet/IB), ConsolePort, PowerPort,
+      FrontPort/RearPort (patching), and 4.7's CoolingIntake/CoolingOutflow. NRM has one Port with
+      `port_class`, so port_class selects which Nautobot model a record round-trips to.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: name
+        system: name
+        direction: both
+      - nrm: resource_id
+        system: device.custom_fields.resource_id
+        direction: both
+      - nrm: port_class
+        system: type
+        direction: both
+        transform: interface_type_map
+        note: |
+          Nautobot's `type` conflates medium and class in one enum (`100gbase-x-qsfp28`), which NRM
+          splits into port_class plus media plus speed_gbps. The transform is lossy in the export
+          direction and must pick a representative Nautobot type.
+      - nrm: media
+        system: type
+        direction: both
+        transform: interface_type_map
+      - nrm: speed_gbps
+        system: speed
+        direction: both
+        transform: kbps_to_gbps
+      - nrm: admin_state
+        system: enabled
+        direction: both
+        transform: bool_to_admin_state
+      - nrm: "identifiers[format=MACAddress].value"
+        system: mac_address
+        direction: both
+      - nrm: labels
+        system: tags
+        direction: both
+        transform: tags_to_labels
+    unmapped_nrm:
+      - field: breakout_of
+        reason: |
+          Nautobot models breakouts as parent/child Interfaces, which is close, but the semantics
+          differ enough (child interfaces there are also used for VLAN subinterfaces) that
+          automatic mapping would conflate two unrelated things.
+      - field: observation
+        reason: As for Resource -- Nautobot has no observed/expected distinction.
+
+  # ── Link ──────────────────────────────────────────────────────────────────────────────────
+  - nrm_entity: link
+    system_model: dcim.Cable
+    direction: both
+    note: |
+      Nautobot Cable is a physical connection between two terminations, which is NRM's expected
+      physical link. NRM's logical links -- an NVLink over a cartridge -- have no Nautobot
+      equivalent and stay NRM-native.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: a_port_id
+        system: termination_a.custom_fields.resource_id
+        direction: both
+      - nrm: b_port_id
+        system: termination_b.custom_fields.resource_id
+        direction: both
+      - nrm: cable.cable_type
+        system: type
+        direction: both
+      - nrm: cable.length_m
+        system: length
+        direction: both
+        transform: to_metres
+        note: Nautobot carries length_unit separately; normalize to metres.
+      - nrm: operational_state
+        system: status.name
+        direction: import
+        transform: cable_status_map
+        values:
+          connected: up
+          planned: unknown
+          decommissioning: down
+      - nrm: labels
+        system: tags
+        direction: both
+        transform: tags_to_labels
+    unmapped_nrm:
+      - field: key
+        reason: |
+          NRM-native and derived, not stored anywhere in Nautobot. Computed from the endpoints on
+          import by contracts.identity.link_key.
+      - field: supporting_link_id
+        reason: |
+          Nautobot has no link-layering concept, so an NVLink cannot be recorded as supported by
+          its cable cartridge. This is the field that makes "six NVLink faults, one bad cartridge"
+          a query instead of an investigation, and it has no Nautobot home.
+      - field: speed_gbps
+        reason: |
+          Nautobot stores negotiated speed on the Interface, not the Cable. Available via the
+          endpoints rather than directly.
+
+  # ── CoolingPath ───────────────────────────────────────────────────────────────────────────
+  - nrm_entity: cooling-path
+    system_model: dcim.CoolingSource
+    direction: both
+    minimum_system_version: "4.7"
+    note: |
+      Nautobot 4.7 shipped CoolingSource -> CoolingFeed -> CoolingIntake/CoolingOutflow, which is
+      the model NRM's CoolingPath adopts field-for-field. This is why the contract needs no RDF:
+      the IT/OT requirement turned out to be expressible relationally, so Brick and Haystack stay
+      documented export targets rather than dependencies.
+    fields:
+      - nrm: id
+        system: custom_fields.resource_id
+        direction: export
+      - nrm: name
+        system: name
+        direction: both
+      - nrm: source_resource_id
+        system: device.custom_fields.resource_id
+        direction: both
+      - nrm: coolant
+        system: coolant_type
+        direction: both
+      - nrm: design.flow_lpm
+        system: flow_rate
+        direction: both
+        transform: to_lpm
+      - nrm: design.supply_temp_c
+        system: supply_temperature
+        direction: both
+      - nrm: design.return_temp_c
+        system: return_temperature
+        direction: both
+      - nrm: feed_resource_ids
+        system: "cooling_feeds[].device.custom_fields.resource_id"
+        direction: both
+      - nrm: intake_port_id
+        system: cooling_intake.custom_fields.resource_id
+        direction: both
+      - nrm: outflow_port_id
+        system: cooling_outflow.custom_fields.resource_id
+        direction: both
+    unmapped_nrm:
+      - field: cooled_resource_ids
+        reason: |
+          Derivable in Nautobot by walking feeds to intakes to devices, but not stored. NRM
+          denormalizes it deliberately -- it is the blast radius of a cooling fault and is read on
+          every alert.
+      - field: design.heat_capacity_kw
+        reason: |
+          No Nautobot field. This is the figure compared against the summed TDP of the cooled
+          resources, which is the check that catches an under-cooled rack before it throttles.
+      - field: redundancy
+        reason: No Nautobot field for source redundancy tier.
+      - field: loop
+        reason: |
+          Nautobot does not distinguish facility-primary from technology-secondary loops. The
+          distinction matters because the two are owned by different organizations and a fault on
+          either side presents identically at the rack.
+
+# Transforms referenced above. Named rather than inlined so the importer implements each once and
+# tests it once, and so this file stays data rather than becoming code in disguise.
+transforms:
+  to_kg: Convert using the source's weight_unit field into kilograms.
+  to_metres: Convert using the source's length_unit field into metres.
+  to_lpm: Convert the source's flow-rate unit into litres per minute.
+  kbps_to_gbps: Nautobot interface speed is kbps; divide by 1_000_000.
+  bool_to_admin_state: "true -> enabled, false -> disabled."
+  tags_to_labels: Nautobot tag names become NRM label keys with value true.
+  status_map: Use the `values` table on the field.
+  cable_status_map: Use the `values` table on the field.
+  interface_type_map: |
+    Split Nautobot's combined type enum into (port_class, media, speed_gbps). Lossy on export --
+    pick the Nautobot type whose triple matches, and fail loudly rather than guessing if none does.
+  flatten_ancestors: |
+    Walk Nautobot's recursive Location tree upward and take the name of the ancestor whose
+    LocationType matches the requested level.

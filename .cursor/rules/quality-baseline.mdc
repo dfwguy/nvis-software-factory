@@ -1,0 +1,60 @@
+---
+description: The eight pillars in standards/ are the single definition of good, consumed by both LLM prompts and the docs site
+globs: standards/**/*.md
+alwaysApply: true
+---
+
+# The quality baseline lives in `standards/`
+
+`standards/pillars/*.md` is the **single source of truth** for what good software looks like at
+NVIS. Two consumers read the same files:
+
+1. **The LLM prompts** — `backend/factory/prompts/` injects pillar definitions into the reasoning
+   passes, so the model judges against the written standard rather than its own priors.
+2. **The docs site** — `bin/gen-docs-reference.py` renders the same files into
+   `docs/reference/generated/pillars/`.
+
+This is the point. If the guidance an agent receives and the guidance a human reads can drift, we
+have two standards and therefore none.
+
+## Changing a pillar
+
+Edit the Markdown in `standards/pillars/`. Do not copy criteria into a prompt template, a scanner
+docstring, or a docs page — reference them.
+
+Every pillar file carries frontmatter that the loader parses, so the structure is contract, not
+convention:
+
+```yaml
+---
+id: durability
+title: Durability and data safety
+severity_ceiling: blocker
+detectors:
+  - backend/factory/scanners/durability.py
+---
+```
+
+`id` is a database value and a prompt key. Renaming one is a migration.
+
+## Criteria must be checkable
+
+Write each criterion so that a reader can answer yes or no about a specific repository. "Handles
+data responsibly" is not a criterion. "State that must survive a restart is written to a path
+outside the container's writable layer" is.
+
+Where a criterion has a deterministic detector, name it in `detectors`. Where it does not — and
+several genuinely do not, because they need architectural judgement — say so explicitly in the
+pillar text, so the model knows it is being asked to judge rather than to confirm.
+
+## Severity vocabulary
+
+Fixed, and shared with the ratchet:
+
+- `blocker` — do not deploy. Data loss, exposed credentials, no authentication on a mutating API.
+- `major` — fix before this is relied on by another team.
+- `minor` — worth doing, not urgent.
+- `info` — an observation, no action implied.
+
+`severity_ceiling` in the frontmatter caps what the model may escalate a pillar's findings to. A
+missing README cannot become a blocker no matter how the model feels about it.

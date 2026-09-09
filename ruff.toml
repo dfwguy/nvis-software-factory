@@ -1,0 +1,45 @@
+# Ruff configuration for nvis-software-factory.
+#
+# Deliberately EXTENDING ruff's defaults rather than declaring a `select` list. Ruff's defaults are
+# broader than the documented E4/E7/E9/F -- they also carry B (bugbear), S (bandit), BLE
+# (blind-except), SIM and UP. An explicit `select` would silently drop whichever of those we forgot
+# to name, weakening the gate while looking like an improvement. `extend-select` cannot do that.
+#
+# The version is pinned in backend/requirements-dev.txt and in .gitlab-ci.yml, and the two must
+# match. Unpinned, every ruff release widens the default rule set under us.
+
+line-length = 100
+target-version = "py312"
+
+# Required for the E1/E2/E3 whitespace and blank-line rules, which are the PEP 8 checks with actual
+# teeth.
+preview = true
+
+[lint]
+# Full pycodestyle on top of the defaults: E4 (imports), E7 (statements) and E9 (runtime) are
+# already on; this adds E1/E2/E3 (indentation, whitespace, blank lines) and the W warnings.
+extend-select = ["E", "W"]
+
+ignore = [
+    # The one deliberate PEP 8 exception, by decision rather than omission. `line-length` above is
+    # kept as the formatter's target and as documentation of intent, but E501 does not gate.
+    "E501",
+    # Preview rules dragged in as a side effect of `preview = true`. Neither is a correctness issue
+    # and both are wide mechanical rewrites. Revisit when they leave preview.
+    "UP017",    # datetime.UTC over timezone.utc
+    "FURB162",  # fromisoformat().replace("Z") simplification
+]
+
+[lint.per-file-ignores]
+# app.py extends sys.path before importing any first-party module, so its imports are legitimately
+# not at the top of the file. Recorded here rather than as a wall of inline suppressions.
+"backend/app.py" = ["E402"]
+
+# Tests may assert freely and reach into private module surfaces on purpose. Unlike the repo this
+# pattern came from, backend/tests IS linted here -- starting a project with the tests excluded is
+# how you end up with a hundred findings nobody can face fixing.
+"backend/tests/*" = ["S101", "SLF001", "S105", "S106"]
+
+# The evidence scanners match on credential-shaped strings by design; bandit's hardcoded-password
+# rules fire on the patterns themselves.
+"backend/factory/scanners/*" = ["S105", "S106", "S107"]

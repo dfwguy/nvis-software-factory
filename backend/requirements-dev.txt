@@ -1,0 +1,22 @@
+# Development and CI tooling. Runtime dependencies live in requirements.txt.
+#
+# This file exists so a contributor reproduces the gates locally with the SAME versions CI uses.
+# Versions inline in .gitlab-ci.yml with no local counterpart means "passes on my machine" and
+# "passes in CI" are different claims about different software.
+#
+#   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+#
+# Then, from the repo root:
+#
+#   python -m pytest backend/tests --cov --cov-config=.coveragerc --cov-report=json:coverage.json
+#   python bin/check-coverage-floor.py coverage.json
+#   ruff check backend/ bin/ && pylint --recursive=y backend
+
+pytest>=8.3,<10
+pytest-cov>=5.0,<8
+
+# Pinned exactly, not floating: a linter that changes its mind between a local run and a CI run
+# turns a green branch red for reasons the author cannot reproduce. Keep in step with
+# .gitlab-ci.yml, which installs the same two pins.
+ruff==0.16.0
+pylint==4.0.7

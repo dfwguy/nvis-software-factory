@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/bundle.schema.json",
+  "title": "NRM bundle",
+  "description": "A set of NRM records exchanged as one document. This is the interchange unit: what a team exports, what an import consumes, and what a fixture is.\n\nA container rather than an entity. It exists because records reference each other by ID, so a Port sent without its Resource is unvalidatable -- referential checks need the whole set in hand. Sending entities as separate files makes that impossible to enforce and makes a partial import look successful.\n\n`nrm_version` is on the bundle, not on each record, because the plan versions the contract as a whole. A bundle mixing versions is refused rather than partially interpreted.",
+
+  "type": "object",
+  "properties": {
+    "nrm_version": {
+      "type": "string",
+      "const": "v0.1",
+      "description": "Contract version this bundle conforms to. Required and exact: a consumer that guesses the version will misread a field that changed meaning, and it will do so silently."
+    },
+
+    "generated_at": { "type": "string", "format": "date-time" },
+
+    "generated_by": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Tool and version that produced this. `nvis-rack-status 1.4.2` is useful when a bundle turns out to be wrong in a systematic way."
+    },
+
+    "observation": {
+      "$ref": "common.schema.json#/$defs/observation",
+      "description": "Default for records that do not state their own. A bundle exported from a cabling plan sets `expected` once here rather than on every record."
+    },
+
+    "resource_types": {
+      "type": "array",
+      "items": { "$ref": "resource-type.schema.json" }
+    },
+    "locations": {
+      "type": "array",
+      "items": { "$ref": "location.schema.json" }
+    },
+    "domains": {
+      "type": "array",
+      "items": { "$ref": "domain.schema.json" }
+    },
+    "resources": {
+      "type": "array",
+      "items": { "$ref": "resource.schema.json" }
+    },
+    "ports": {
+      "type": "array",
+      "items": { "$ref": "port.schema.json" }
+    },
+    "links": {
+      "type": "array",
+      "items": { "$ref": "link.schema.json" }
+    },
+    "cooling_paths": {
+      "type": "array",
+      "items": { "$ref": "cooling-path.schema.json" }
+    }
+  },
+
+  "required": ["nrm_version"],
+  "additionalProperties": false
+}

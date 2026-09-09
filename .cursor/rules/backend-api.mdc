@@ -1,0 +1,73 @@
+---
+description: Flask /api/* conventions — where endpoints go, response shape, authz, and what must not import Flask
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend API conventions
+
+## Where new endpoints go — `backend/api/`, never `app.py`
+
+**Add a module. Do not edit `app.py`, and do not edit `backend/api/__init__.py` either.** The
+loader walks the package, so a new file registers itself.
+
+```python
+# backend/api/assessments.py  ->  serves /api/assessments/...
+from flask import Blueprint, jsonify
+
+bp = Blueprint("assessments", __name__)   # no url_prefix -> derived from the filename
+
+@bp.route("/", methods=["GET"])           # -> /api/assessments/
+def list_assessments():
+    return jsonify({"ok": True, "assessments": []})
+```
+
+Underscore-prefixed modules are skipped by the loader, which is how `_common.py` stays a helper
+rather than a route surface. A module may instead expose `install(app)` when it needs to attach
+middleware rather than routes.
+
+## Response shape
+
+JSON, always, with an explicit success flag:
+
+```python
+return jsonify({"ok": True, ...})
+return jsonify({"ok": False, "error": "human-readable", "reason": "machine-token"}), 400
+```
+
+HTTP semantics that the auth gate depends on:
+
+- `401` — not authenticated. Carries `WWW-Authenticate`.
+- `403` — authenticated, but policy denied.
+- `409` — the request conflicts with current state (a run already in flight).
+- `503` — a required dependency is unavailable. This is what an unreachable LLM endpoint returns;
+  it is not a `500`, because nothing is broken.
+
+## Authorization is default-deny
+
+Every route carries an `@action` decorator naming what it does. A route without one is denied, not
+allowed — that is deliberate, so forgetting the decorator fails safe and loudly in tests.
+
+```python
+@bp.route("/<run_id>/retry", methods=["POST"])
+@action("assessment:retry")
+def retry(run_id: str):
+    ...
+```
+
+The action vocabulary lives in `backend/authz/resources.py`. Add the verb there first.
+
+## What must not import Flask
+
+`backend/factory/`, `backend/contracts/` and `backend/store/` are Flask-free. They are the parts
+worth unit-testing without an app context, and they are the parts most likely to be reused by a
+CLI or a scheduled job later.
+
+If one of those modules needs `request`, `g`, or `current_app`, the dependency belongs in the
+blueprint. Pass the value in as an argument.
+
+## Long-running work does not block a request
+
+An assessment takes minutes. `POST /api/assessments` enqueues and returns `202` with a run id; the
+client polls or subscribes. Never run a pipeline inside the request handler — the app runs a single
+gunicorn worker with a thread pool, and a blocked thread is a thread the UI cannot use.

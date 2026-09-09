@@ -1,0 +1,114 @@
+# CycloneDX <-> NRM crosswalk. EXPORT ONLY.
+#
+# CycloneDX is an OWASP BOM standard, and its hardware BOM profile is a reasonable target for
+# "here is everything in this rack, with serials". Emitting one costs little and gives supply-chain
+# and security teams a format they already have tooling for, which is a better outcome than asking
+# them to learn NRM.
+#
+# Export only, and the direction is not negotiable. A CycloneDX BOM is a flat component list with
+# optional nesting; it has no ports, no links, no cooling paths, and no expected/observed
+# distinction. Importing one would produce an inventory that cannot answer any of the questions NRM
+# exists to answer, while looking populated -- which is worse than an empty one.
+#
+# `role: export_target` is what marks this as a projection rather than an integration.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: cyclonedx
+system_version: ">=1.6"
+role: export_target
+authority: |
+  Authoritative for nothing. This is a rendering of NRM for consumers with CycloneDX tooling. If a
+  BOM and NRM disagree, NRM is right and the BOM is stale.
+join:
+  nrm_field: id
+  system_field: "component.bom-ref"
+  note: |
+    NRM's UUID becomes the bom-ref, so a BOM can be regenerated and diffed against an earlier one
+    without the refs shifting. A generated sequential ref would make every diff show every line.
+
+entities:
+  - nrm_entity: resource
+    system_model: component (type=device)
+    direction: export
+    fields:
+      - nrm: id
+        system: "component.bom-ref"
+        direction: export
+      - nrm: name
+        system: component.name
+        direction: export
+      - nrm: parent_id
+        system: "component.components[] nesting"
+        direction: export
+        transform: nest_by_containment
+        note: |
+          NRM's containment tree becomes CycloneDX's nested components, which is the one structural
+          feature the two share.
+      - nrm: "identifiers[format=SERIAL].value"
+        system: component.properties["nvis:serial"]
+        direction: export
+        note: |
+          CycloneDX 1.6 has no first-class serial field for hardware components, so identifiers go
+          into namespaced properties. Namespaced because an unprefixed custom property collides
+          with someone else's the first time two BOMs are merged.
+      - nrm: "identifiers[format=UUID].value"
+        system: component.properties["nvis:uuid"]
+        direction: export
+      - nrm: "identifiers[format=IB_GUID].value"
+        system: component.properties["nvis:ib-guid"]
+        direction: export
+      - nrm: "identifiers[format=GPU_UUID].value"
+        system: component.properties["nvis:gpu-uuid"]
+        direction: export
+      - nrm: external_refs.nautobot
+        system: component.externalReferences[type=other]
+        direction: export
+    unmapped_nrm:
+      - field: observation
+        reason: |
+          CycloneDX has no expected/observed distinction. A BOM is implicitly a statement about
+          reality, so only `observed` resources should be exported -- exporting planned ones would
+          claim hardware exists that has not shipped.
+      - field: part_location
+        reason: No CycloneDX equivalent. Available as a property if a consumer asks for it.
+      - field: domain_id
+        reason: No CycloneDX concept of a logical domain.
+      - field: lifecycle
+        reason: |
+          CycloneDX 1.6 lifecycles describe the BOM's own phase, not a component's operational
+          state. Mapping one onto the other would be a false cognate.
+
+  - nrm_entity: resource-type
+    system_model: component (type=device) manufacturer/model fields
+    direction: export
+    note: |
+      Type data is FLATTENED onto each component, because CycloneDX has no type/instance split.
+      This is the main information loss in the export and the reason it is one-way: re-importing
+      would create one ResourceType per unit.
+    fields:
+      - nrm: manufacturer
+        system: component.manufacturer.name
+        direction: export
+      - nrm: model
+        system: component.name
+        direction: export
+      - nrm: part_number
+        system: component.properties["nvis:part-number"]
+        direction: export
+      - nrm: datasheet_url
+        system: component.externalReferences[type=documentation]
+        direction: export
+    unmapped_nrm:
+      - field: port_templates
+        reason: No CycloneDX concept of ports.
+      - field: cooling
+        reason: No CycloneDX concept of cooling requirements.
+      - field: power
+        reason: No CycloneDX concept of power draw.
+
+transforms:
+  nest_by_containment: |
+    Walk NRM's parent_id tree and emit each resource inside its parent's components array. Requires
+    a single root per BOM; a forest must be exported as multiple BOMs, since CycloneDX has one
+    metadata.component at the top.

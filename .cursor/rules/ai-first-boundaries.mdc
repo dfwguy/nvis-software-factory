@@ -1,0 +1,80 @@
+---
+description: Where the LLM has authority and where it must not — the one-way ratchet, fail-closed startup, the redaction boundary, and provenance capture
+globs: backend/factory/**/*.py
+alwaysApply: true
+---
+
+# AI-first boundaries
+
+The Software Factory is AI-first: the LLM is a **required** stage, not an enhancement. The app
+refuses to start without one. But "required" and "authoritative" are different claims, and the
+distance between them is the entire reason this project exists.
+
+The motivating incident: a team lost all their data when someone restarted the Docker service,
+because their state was in-memory in a container. That software was produced quickly by an agent
+and nobody checked the durability question. If *our* assessment of that repository were also just
+a model's opinion, we would have rebuilt the same failure one level up — a confident answer with
+nothing underneath it.
+
+## The one-way ratchet
+
+**Scanners own facts. The model owns judgement and narrative.**
+
+A deterministic finding is a floor. The model may:
+
+- escalate a finding's severity,
+- add findings the scanners could not see (architectural smells, missing failure handling),
+- explain *why* a finding matters for this specific repository.
+
+The model may **not**:
+
+- downgrade, waive, or explain away a deterministic finding,
+- decide schema conformance — `jsonschema` decides that, always,
+- assert a fact that has no evidence entry backing it.
+
+Implemented in `backend/factory/ratchet.py`. Every merged finding records `origin`
+(`scanner` | `model`) and, for escalations, `escalated_from`. If you find yourself wanting to let
+the model clear a scanner finding, the correct change is to fix the scanner's false positive, not
+to loosen the ratchet.
+
+## Fail closed, never degrade
+
+There is **no fallback path** when the LLM is unavailable. Do not add one, however tempting.
+
+- Startup: `backend/startup_gate.py` refuses to boot without a configured endpoint and model.
+- Mid-run: the run transitions to `failed` with a retryable reason. It never emits a partial or
+  templated report.
+
+A thinner report that looks like a real report is worse than no report, because the reader cannot
+tell the difference. This mirrors the operational rule the sibling project states explicitly:
+missing, stale, skipped or unreachable data is never converted into a pass.
+
+## The redaction boundary
+
+The model sees `EvidenceDocument`, never raw repository content.
+
+- Redaction happens in the evidence layer, **before** serialization — not in the prompt builder.
+  See `backend/factory/redact.py`.
+- Secret *candidates* are replaced with a shape description (`"AWS-key-shaped, 20 chars"`), never
+  the value. The finding survives; the credential does not leave the process.
+- Evidence is bounded. Large repositories go through map-reduce summarization in
+  `backend/factory/summarize.py` rather than context stuffing.
+
+Never pass a file's raw bytes to the model. If a scanner needs the model to look at a snippet, it
+emits an excerpt through the redaction path with explicit line bounds.
+
+## Provenance is not optional
+
+Every run records, in `llm_calls`: model id, prompt template version, temperature, evidence hash,
+token usage, and the raw response. This is what makes an assessment reproducible and two
+assessments diffable.
+
+Prompt templates are **versioned files** under `backend/factory/prompts/`, never inline strings.
+Changing a prompt is a reviewable diff with a version bump, because it changes every future
+assessment.
+
+## Resumability
+
+Each pass persists before the next begins. A mid-run outage resumes from the last completed pass.
+When adding a pass, register it in `backend/factory/passes.py` with a stable name — the name is a
+database value, so renaming one is a migration, not a refactor.

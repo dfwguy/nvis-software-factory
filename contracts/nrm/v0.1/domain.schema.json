@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/domain.schema.json",
+  "title": "Domain",
+  "description": "A logical grouping that cuts across the containment tree. Racks are physical; an InfiniBand fabric, an NVLink domain, a Slurm partition and a power zone are not, and none of them nest neatly inside a rack.\n\nThis is the entity each team scopes its own view with. The IB team cares about `ib_fabric` domains, the Ethernet team about `ethernet_fabric`, OVA about `compute` and `cooling`, and facilities about `power`. One domain entity with a class discriminator means a team can filter to its own concern without every team needing its own entity -- which is precisely the duplication the contract exists to stop.",
+
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Name as the owning team uses it. For an NVLink domain on a GB200 NVL72 this is typically the rack, because the domain and the rack are coextensive there."
+    },
+
+    "domain_class": {
+      "type": "string",
+      "enum": [
+        "compute",
+        "storage",
+        "management",
+        "nvlink",
+        "ib_fabric",
+        "ethernet_fabric",
+        "power",
+        "cooling",
+        "tenant",
+        "other"
+      ]
+    },
+
+    "parent_id": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+      "description": "Enclosing domain, for the cases that genuinely nest: an IB subnet inside a fabric, a partition inside a cluster. Not a general-purpose hierarchy -- a domain whose parent is of an unrelated class is a modelling mistake."
+    },
+
+    "member_resource_ids": {
+      "type": "array",
+      "description": "Explicit membership. Present for domains whose membership is a decision rather than a consequence -- a Slurm partition, a tenant allocation. Omit it where membership follows from the topology, because a stored list that duplicates a derivable one will disagree with it.",
+      "items": { "$ref": "common.schema.json#/$defs/uuid" },
+      "maxItems": 65536
+    },
+
+    "scope": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Free-text bound on the domain's extent: a site, a hall, a cluster name. Advisory."
+    },
+
+    "owner": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Team or person accountable for this domain. Named because 'who do I call about this fabric' is the first question of every escalation, and an inventory that cannot answer it sends people to Slack to guess."
+    },
+
+    "observation": { "$ref": "common.schema.json#/$defs/observation" },
+    "external_refs": { "$ref": "common.schema.json#/$defs/external_refs" },
+    "labels": { "$ref": "common.schema.json#/$defs/labels" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "timestamps": { "$ref": "common.schema.json#/$defs/timestamps" },
+
+    "attributes": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+
+  "required": ["id", "name", "domain_class"],
+  "additionalProperties": false
+}

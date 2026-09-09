@@ -1,0 +1,49 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.json
+coverage.xml
+htmlcov/
+
+# ── Node / frontend ──────────────────────────────────────────────────────────
+node_modules/
+.npm-cache/
+frontend/dist/
+static/spa/
+
+# ── Sphinx ───────────────────────────────────────────────────────────────────
+docs/_build/
+docs/reference/generated/
+
+# ── Runtime state ────────────────────────────────────────────────────────────
+# The bind-mounted data directory. Everything durable lives here, which is exactly
+# why it must never be committed: it holds assessment artifacts, the SQLite
+# database, and the audit trail.
+var/
+!var/.gitkeep
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# scripts/check_no_secrets_in_git.sh fails the lint stage if any of these become
+# tracked, because .gitignore only protects files nobody has force-added yet.
+.env
+.env.*
+!.env.example
+factory.toml
+*.pem
+*.key
+!**/testdata/**/*.key
+*.p12
+oidc-client-secret*
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/

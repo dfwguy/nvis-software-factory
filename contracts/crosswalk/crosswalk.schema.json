@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/crosswalk.schema.json",
+  "title": "NRM crosswalk",
+  "description": "The shape of a crosswalk file. Crosswalks are versioned YAML data rather than prose in a wiki page, and this schema is what makes that claim mean something: every mapping is checked in CI against this shape, and every NRM field it names is checked to exist in the contract.\n\nA prose crosswalk cannot be tested, so it drifts from the contract silently and is discovered wrong by the team that trusted it. That is the specific failure this file prevents.\n\n`unmapped_nrm` is required and deliberately so. A crosswalk that lists only what it maps looks complete; the honest question is what it CANNOT carry, because that is what an integrating team needs to know before they build on it. Each entry states a reason, so the gap is a documented decision rather than an oversight.",
+
+  "type": "object",
+  "properties": {
+    "crosswalk_version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+$" },
+    "nrm_version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+$" },
+
+    "system": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}$",
+      "description": "Lowercase system name, matching the key used in an NRM record's external_refs."
+    },
+
+    "system_version": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Version range this mapping was written against. A crosswalk is only true of a particular version of the other system."
+    },
+
+    "minimum_system_version": { "type": "string", "maxLength": 64 },
+
+    "role": {
+      "type": "string",
+      "enum": [
+        "source_of_record",
+        "discovery",
+        "telemetry",
+        "provisioning",
+        "export_target",
+        "planning_input"
+      ],
+      "description": "What this system IS to us, which determines who wins a disagreement. A source_of_record beats NRM on asset facts; a discovery system beats NRM on observed state; an export_target never originates anything."
+    },
+
+    "authority": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Prose statement of what this system is and is not authoritative for. The one place prose is right, because 'authoritative for asset existence but not for fabric state' is a judgement that resists enumeration."
+    },
+
+    "join": {
+      "type": "object",
+      "description": "The field pair that links an NRM record to its counterpart. Without a stated join, a crosswalk describes field similarity rather than a usable integration.",
+      "properties": {
+        "nrm_field": { "type": "string", "minLength": 1 },
+        "system_field": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "maxLength": 2048 }
+      },
+      "required": ["nrm_field", "system_field"],
+      "additionalProperties": false
+    },
+
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entity_mapping" }
+    },
+
+    "transforms": {
+      "type": "object",
+      "description": "Named value transformations referenced by field mappings. Named rather than inlined so an importer implements and tests each once, and so this file stays data instead of becoming code in disguise.",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+
+    "recommended_labels": {
+      "type": "object",
+      "description": "Label or tag names NRM contributes TO the other system, each with what it carries. Distinct from `entities` because these are not fields either system stores -- they are names a scrape config or a relabeling rule attaches at collection time.\n\nDeclared here because for a telemetry system, agreeing on the label names IS the integration: nothing needs importing, and the join only works if every team spells `nvis_cooling_path_id` the same way. Four teams inventing four prefixes for one fact is the duplication this contract exists to stop.",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  },
+
+  "required": ["crosswalk_version", "nrm_version", "system", "role", "entities"],
+  "additionalProperties": false,
+
+  "$defs": {
+    "direction": {
+      "type": "string",
+      "enum": ["import", "export", "both"],
+      "description": "import: the other system is authoritative and NRM follows. export: NRM is authoritative and it is safe to write back. both: either may originate the value."
+    },
+
+    "entity_mapping": {
+      "type": "object",
+      "properties": {
+        "nrm_entity": {
+          "type": "string",
+          "enum": [
+            "resource",
+            "resource-type",
+            "location",
+            "port",
+            "link",
+            "domain",
+            "cooling-path"
+          ]
+        },
+        "system_model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "The other system's model, table, endpoint or file section."
+        },
+        "direction": { "$ref": "#/$defs/direction" },
+        "minimum_system_version": { "type": "string", "maxLength": 64 },
+        "note": { "type": "string", "maxLength": 4096 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/field_mapping" }
+        },
+        "unmapped_nrm": {
+          "type": "array",
+          "description": "NRM fields this system cannot carry, each with a reason. Required on every entity mapping, including as an empty list, so 'nothing is unmapped' is an assertion someone made rather than a section someone forgot.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 4096 }
+            },
+            "required": ["field", "reason"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["nrm_entity", "system_model", "direction", "fields", "unmapped_nrm"],
+      "additionalProperties": false
+    },
+
+    "field_mapping": {
+      "type": "object",
+      "properties": {
+        "nrm": {
+          "type": "string",
+          "minLength": 1,
+          "description": "NRM field path. Dotted for nested objects (`design.flow_lpm`), with a filter for array members (`identifiers[format=SERIAL].value`). CI checks the base field exists in the entity schema."
+        },
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The other system's field path, in that system's own idiom."
+        },
+        "direction": { "$ref": "#/$defs/direction" },
+        "transform": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of an entry in the top-level `transforms` map. CI checks it resolves."
+        },
+        "values": {
+          "type": "object",
+          "description": "Explicit enum translation table, system value to NRM value. Spelled out rather than left to a transform because an enum mapping is exactly the thing a reader needs to see.",
+          "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+        },
+        "unreliable": {
+          "type": "boolean",
+          "default": false,
+          "description": "The mapping works in practice but is not guaranteed -- a value parsed out of a free-text comments field, or a field sites use inconsistently. Marked so no automated check silently depends on it."
+        },
+        "note": { "type": "string", "maxLength": 4096 }
+      },
+      "required": ["nrm", "system", "direction"],
+      "additionalProperties": false
+    }
+  }
+}

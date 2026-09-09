@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/common.schema.json",
+  "title": "NRM common definitions",
+  "description": "Shared definitions for NVIS Resource Model v0.1. Referenced by every entity schema in this directory. Nothing here is an entity; there is no top-level object to validate against this file.",
+
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "description": "An opaque surrogate key. Mint a UUIDv7 for new records: it is time-ordered, so it indexes and sorts usefully, and it is still opaque. Any RFC 9562 UUID validates, because records imported from a system that already minted a v4 must not be forced to change identity.",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+
+    "identifier_format": {
+      "type": "string",
+      "description": "How to read the accompanying value. The first ten members are Redfish's DurableNameFormat verbatim, so a Redfish payload crosswalks without translation. The last four are NVIS extensions for identity Redfish has no format for.",
+      "oneOf": [
+        {
+          "const": "NAA",
+          "title": "Name Address Authority, T11 FC-FS (Redfish)"
+        },
+        { "const": "iQN", "title": "iSCSI Qualified Name, RFC 3720 (Redfish)" },
+        { "const": "FC_WWN", "title": "Fibre Channel World Wide Name (Redfish)" },
+        { "const": "UUID", "title": "RFC 9562 UUID (Redfish)" },
+        { "const": "EUI", "title": "IEEE-defined Extended Unique Identifier (Redfish)" },
+        { "const": "NQN", "title": "NVMe Qualified Name (Redfish)" },
+        { "const": "NSID", "title": "NVM Namespace Identifier (Redfish)" },
+        { "const": "NGUID", "title": "NVM Namespace Globally Unique Identifier (Redfish)" },
+        { "const": "MACAddress", "title": "IEEE 802 MAC address (Redfish)" },
+        { "const": "GCXLID", "title": "Global CXL Logical Device Identifier (Redfish)" },
+
+        {
+          "const": "IB_GUID",
+          "title": "InfiniBand GUID (NVIS extension)",
+          "description": "Node, port or system GUID as reported by ibnetdiscover or UFM. Redfish has no InfiniBand identity format, and this is the join key for every fabric validation we run."
+        },
+        {
+          "const": "GPU_UUID",
+          "title": "GPU UUID (NVIS extension)",
+          "description": "The GPU-xxxxxxxx form reported by nvidia-smi and used as the DCGM label. Distinct from the UUID format because the GPU- prefix is part of the value everywhere it appears, and stripping it would break every existing join."
+        },
+        {
+          "const": "NVLINK_GUID",
+          "title": "NVLink GUID (NVIS extension)",
+          "description": "NVLink endpoint or switch identity, needed to distinguish a logical NVLink from the physical cable cartridge carrying it."
+        },
+        {
+          "const": "SERIAL",
+          "title": "Manufacturer serial number (NVIS extension)",
+          "description": "The serial as printed and as it appears on the packing list. Scoped by the manufacturer of the resource's type, because serials are not globally unique."
+        }
+      ]
+    },
+
+    "identifier": {
+      "type": "object",
+      "description": "One way the physical world names this resource. A resource carries as many as are known, and reconciliation matches on any of them. This is what lets a surrogate primary key coexist with real-world identity: nothing is forced to choose one true name.",
+      "properties": {
+        "format": { "$ref": "#/$defs/identifier_format" },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Verbatim as the source system reports it. Do not normalize case, strip prefixes, or reformat separators: the value's job is to match, and every normalization is a chance to stop matching."
+        },
+        "scope": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Namespace within which the value is unique, where it is not globally unique. Required in practice for SERIAL (use the manufacturer) and useful for site-scoped names."
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "System this identifier was read from, for example nautobot, ufm, redfish, dcgm, packing-list."
+        }
+      },
+      "required": ["format", "value"],
+      "additionalProperties": false
+    },
+
+    "observation": {
+      "type": "string",
+      "enum": ["expected", "observed"],
+      "description": "Whether this record states design intent or a measurement. First-class on every entity and every relation, because the difference between the two IS the validation product: a cabling file says expected, ibnetdiscover says observed, and the diff is the defect list. No surveyed standard carries this distinction, which is why it is here rather than crosswalked.",
+      "default": "observed"
+    },
+
+    "lifecycle": {
+      "type": "string",
+      "enum": ["planned", "staged", "active", "degraded", "offline", "decommissioned"],
+      "description": "Where the resource is in its life, not whether it is healthy right now. Health is telemetry and belongs in DCGM or Prometheus; putting it here would invite a slow inventory database to be polled as a monitoring system."
+    },
+
+    "part_location": {
+      "type": "object",
+      "description": "Redfish PartLocation, for addressing something inside something else. This is how a transceiver in a cage in a tray gets an address without inventing a path syntax.",
+      "properties": {
+        "service_label": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "The label as silkscreened on the hardware, which is what an operator standing at the rack can actually read."
+        },
+        "location_type": {
+          "type": "string",
+          "enum": ["Slot", "Bay", "Connector", "Socket", "Backplane", "Embedded"],
+          "description": "Redfish LocationType."
+        },
+        "location_ordinal_value": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index within the parent, per Redfish."
+        },
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "FrontToBack",
+            "BackToFront",
+            "TopToBottom",
+            "BottomToTop",
+            "LeftToRight",
+            "RightToLeft"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "enum": ["Top", "Bottom", "Front", "Rear", "Left", "Right", "Middle"]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "external_refs": {
+      "type": "object",
+      "description": "Foreign keys into systems that are authoritative for something. Nautobot is the asset source of record per the InfoSec Asset Management Standard, and its resource_id custom field exists expressly to hold the other direction of this join -- so `nautobot` here plus `resource_id` there is a bidirectional link, not a copy. NRM does not compete with these systems; it references them.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{1,31}$",
+        "description": "Lowercase system name: nautobot, ufm, redfish, bcm, dcgm, servicenow."
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+
+    "labels": {
+      "type": "object",
+      "description": "Free-form key/value tags for local use. Deliberately outside the modelled fields: a team needs somewhere to put something the contract does not cover, and without this they would either abuse a modelled field or refuse the contract. Nothing normative may depend on a label.",
+      "propertyNames": { "pattern": "^[a-zA-Z_][a-zA-Z0-9_./-]{0,62}$" },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      },
+      "maxProperties": 64
+    },
+
+    "provenance": {
+      "type": "object",
+      "description": "Where this record came from. Required in practice for anything imported, because a validation failure whose first question is 'which file said this?' costs an afternoon to answer otherwise.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "System or file kind: nautobot, ufm, rack-inventory-xlsx, p2p-cabling-csv, bcm-netautogen, dcgm, manual."
+        },
+        "source_ref": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Locator within the source: a filename, a URL, a row number, a Nautobot object ID."
+        },
+        "collected_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the source produced this, not when NRM ingested it. An observed record whose collected_at is three weeks old is not evidence about today."
+        },
+        "collected_by": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Tool and version, or a person. `ibnetdiscover 3.2.1` is useful; `script` is not."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "timestamps": {
+      "type": "object",
+      "properties": {
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "first_seen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "First observation. Together with last_seen this answers 'has this been missing since the maintenance window?', which is the question asked during every bring-up."
+        },
+        "last_seen": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/location.schema.json",
+  "title": "Location",
+  "description": "A place in a data centre, addressed the way an operator addresses it: site, room, row, rack, rack unit. Kept as its own entity rather than fields on Resource because many resources share one location, and because a location exists before anything is installed in it -- a rack position in a floor plan is a real thing to plan against.\n\nAddressing INSIDE a chassis is not here. That is Redfish PartLocation on the Resource, because it is relative to a parent rather than to the building.",
+
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+
+    "site": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Site code as the business uses it, not a street address. This is the field that appears in a ticket subject line."
+    },
+
+    "room": { "type": "string", "maxLength": 128 },
+
+    "row": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Row label as painted on the floor or containment."
+    },
+
+    "rack": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Rack label as printed on the rack. For an NVL72 this is the unit an entire validation campaign is scoped to, which is why it is a first-class field rather than a label."
+    },
+
+    "rack_unit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 60,
+      "description": "Lowest rack unit occupied, counting from the bottom, matching how racks are physically numbered and how NetBox stores position. Fractional for half-U placements."
+    },
+
+    "rack_face": {
+      "type": "string",
+      "enum": ["front", "rear"],
+      "description": "Which side the resource is mounted on. Two resources may share a rack unit if they are on opposite faces, and a validation that ignores face will report a phantom collision."
+    },
+
+    "grid_reference": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Floor tile or grid square, where the facility uses one. This is what a crane plan and a cooling survey are drawn against."
+    },
+
+    "coordinates": {
+      "type": "object",
+      "description": "Position within the room, for floor plans and cooling models. Room-relative metres rather than lat/long, because building-relative is what every facility drawing uses.",
+      "properties": {
+        "x_m": { "type": "number" },
+        "y_m": { "type": "number" },
+        "z_m": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+
+    "power_zone": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Facility power zone or feed identifier. Present because 'which racks lose power together' is a question about the building, not about the racks, and it cannot be derived from anything else here."
+    },
+
+    "cooling_zone": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Facility cooling zone, typically the CDU or manifold group serving this position."
+    },
+
+    "observation": { "$ref": "common.schema.json#/$defs/observation" },
+    "external_refs": { "$ref": "common.schema.json#/$defs/external_refs" },
+    "labels": { "$ref": "common.schema.json#/$defs/labels" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "timestamps": { "$ref": "common.schema.json#/$defs/timestamps" }
+  },
+
+  "required": ["id", "site"],
+  "additionalProperties": false
+}

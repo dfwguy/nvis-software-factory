@@ -1,0 +1,246 @@
+# DMTF Redfish <-> NRM crosswalk.
+#
+# Redfish is where several of NRM's own shapes came FROM, which makes this the least lossy mapping
+# in the set: `identifiers[].format` is DurableNameFormat, and `part_location` is PartLocation,
+# both adopted rather than paraphrased. Those two borrowings are why a Redfish payload crosswalks
+# without translation, and they are the reason NRM did not need to invent an identity scheme.
+#
+# Role is discovery: a BMC is authoritative about the hardware it is inside and knows nothing about
+# anything else. Import-only for that reason.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: redfish
+system_version: ">=1.16"
+role: discovery
+authority: |
+  Authoritative for the OBSERVED composition of one system: which parts are installed, their
+  serials and firmware, and the chassis-relative position of each. Not authoritative for anything
+  beyond the chassis boundary -- Redfish has no view of the rack, the fabric or the facility.
+join:
+  nrm_field: "identifiers[format=UUID].value"
+  system_field: ComputerSystem.UUID
+  note: |
+    Falls back to identifiers[format=SERIAL] against Chassis.SerialNumber, because the system UUID
+    is not populated on every platform and the serial always is.
+
+entities:
+  - nrm_entity: resource
+    system_model: Chassis / ComputerSystem / Processor / NetworkAdapter
+    direction: import
+    note: |
+      Redfish's resource tree maps onto NRM's containment tree almost directly, which is the whole
+      reason containment was chosen as the primary relationship. `Links.ContainedBy` becomes
+      parent_id with no reinterpretation.
+    fields:
+      - nrm: name
+        system: Name
+        direction: import
+      - nrm: parent_id
+        system: Links.ContainedBy
+        direction: import
+        transform: resolve_odata_id
+      - nrm: "identifiers[format=UUID].value"
+        system: UUID
+        direction: import
+      - nrm: "identifiers[format=SERIAL].value"
+        system: SerialNumber
+        direction: import
+        note: Scope the identifier with Manufacturer, since serials are not globally unique.
+      - nrm: "identifiers[format=GPU_UUID].value"
+        system: Processors[].UUID
+        direction: import
+        unreliable: true
+        note: |
+          Only for GPU processors, and only where the platform reports the GPU- prefixed form.
+          Where it does not, DCGM is the reliable source for GPU UUID.
+      - nrm: part_location
+        system: Location.PartLocation
+        direction: import
+        note: |
+          Field-for-field. PartLocation is adopted verbatim in common.schema.json, so no
+          transformation is required or permitted.
+      - nrm: lifecycle
+        system: Status.State
+        direction: import
+        transform: redfish_state_map
+        values:
+          Enabled: active
+          Disabled: offline
+          StandbyOffline: offline
+          UnavailableOffline: offline
+          Absent: decommissioned
+          Deferring: staged
+          Quiesced: degraded
+      - nrm: attributes.firmware_version
+        system: FirmwareVersion
+        direction: import
+        note: |
+          An attribute rather than a modelled field because firmware version is per-component and
+          changes on a different cadence from everything else in the model. It is here because
+          "which nodes are on the old BF3 BIOS" is a question asked at every bring-up.
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+    unmapped_nrm:
+      - field: resource_type_id
+        reason: |
+          Redfish reports Manufacturer and Model as strings, not a catalog reference. An importer
+          resolves them against existing ResourceTypes; minting one per discovered string would
+          fill the catalog with variant spellings of the same SKU.
+      - field: location_id
+        reason: |
+          Redfish Location is chassis-relative. Some platforms report a rack name in
+          Location.Placement, but not reliably enough to build on.
+      - field: domain_id
+        reason: No Redfish concept of a logical domain.
+
+  - nrm_entity: resource-type
+    system_model: Chassis Manufacturer + Model + PartNumber
+    direction: import
+    note: |
+      Enough to MATCH an existing ResourceType, not enough to create a good one -- a Redfish
+      payload has no rack units, no TDP and no cooling requirement. Partner datasheets fill those.
+    fields:
+      - nrm: manufacturer
+        system: Manufacturer
+        direction: import
+      - nrm: model
+        system: Model
+        direction: import
+      - nrm: part_number
+        system: PartNumber
+        direction: import
+    unmapped_nrm:
+      - field: u_height
+        reason: Not reported by Redfish. From the datasheet.
+      - field: power
+        reason: |
+          Redfish Power/PowerSubsystem reports MEASURED draw and capacity, not the SKU's nameplate
+          figures. Those are different numbers answering different questions, and conflating them
+          would make a power budget wrong in a way that looks plausible.
+      - field: cooling
+        reason: |
+          Redfish ThermalSubsystem reports observed temperatures and pump state, not the design
+          coolant requirement.
+      - field: port_templates
+        reason: |
+          Derivable from a specific system's NetworkAdapter list, but that is instance data, not
+          the SKU's port layout.
+
+  - nrm_entity: port
+    system_model: NetworkPort / NetworkDeviceFunction / Port
+    direction: import
+    fields:
+      - nrm: name
+        system: Id
+        direction: import
+      - nrm: resource_id
+        system: Links.ContainedBy
+        direction: import
+        transform: resolve_odata_id
+      - nrm: port_class
+        system: PortProtocol
+        direction: import
+        transform: redfish_protocol_map
+        values:
+          Ethernet: ethernet
+          InfiniBand: infiniband
+          PCIe: pcie
+          NVLink: nvlink
+          FC: other
+      - nrm: "identifiers[format=MACAddress].value"
+        system: AssociatedNetworkAddresses
+        direction: import
+      - nrm: speed_gbps
+        system: CurrentSpeedGbps
+        direction: import
+      - nrm: media
+        system: ActiveLinkTechnology / PluggableModuleType
+        direction: import
+        transform: redfish_media_map
+        unreliable: true
+        note: Reporting varies by platform and firmware.
+      - nrm: part_location
+        system: Location.PartLocation
+        direction: import
+      - nrm: admin_state
+        system: LinkEnabled
+        direction: import
+        transform: bool_to_admin_state
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+    unmapped_nrm:
+      - field: breakout_of
+        reason: |
+          Redfish models this as Port.Links.AssociatedNetworkPorts, whose semantics differ enough
+          from a breakout relationship that mapping it automatically would conflate two things.
+
+  - nrm_entity: cooling-path
+    system_model: ThermalSubsystem / CoolingLoop / Pump
+    direction: import
+    minimum_system_version: "1.18"
+    note: |
+      Redfish 2023.2 added CoolingLoop and CoolingUnit, which gives an in-chassis view of the loop.
+      It stops at the chassis boundary, so the facility side of a path -- CDU, manifold, primary
+      loop -- comes from Nautobot 4.7 or is NRM-native.
+    fields:
+      - nrm: name
+        system: CoolingLoop.Id
+        direction: import
+      - nrm: coolant
+        system: CoolingLoop.Coolant.CoolantType
+        direction: import
+        transform: redfish_coolant_map
+        values:
+          Water: water
+          Hydrocarbon: dielectric
+          Fluorocarbon: dielectric
+          Dielectric: dielectric
+      - nrm: design.supply_temp_c
+        system: CoolingLoop.SupplyEquipmentNames
+        direction: import
+        unreliable: true
+        note: |
+          Redfish reports MEASURED supply temperature in Sensors, not the design point. Mapped only
+          where a platform publishes a design threshold; otherwise the design figures are NRM-native
+          and come from commissioning.
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_observed
+    unmapped_nrm:
+      - field: loop
+        reason: |
+          Redfish sees one loop from inside the chassis and cannot tell facility-primary from
+          technology-secondary.
+      - field: feed_resource_ids
+        reason: The distribution chain is outside the chassis and therefore outside Redfish.
+      - field: cooled_resource_ids
+        reason: Derivable within one chassis, but a path serves a whole rack.
+      - field: redundancy
+        reason: |
+          Redfish reports pump redundancy for a CoolingUnit, which is not the same as the
+          redundancy tier of the facility source serving the path.
+      - field: design.heat_capacity_kw
+        reason: |
+          Not reported by Redfish, and not knowable from inside one chassis -- rated heat removal
+          is a property of the facility loop. This is the figure compared against summed TDP to
+          catch an under-cooled rack before it throttles, so its absence here matters.
+
+transforms:
+  constant_observed: 'Set observation to "observed".'
+  bool_to_admin_state: 'true -> enabled, false -> disabled.'
+  redfish_state_map: Use the values table on the field.
+  redfish_protocol_map: Use the values table on the field.
+  redfish_coolant_map: Use the values table on the field.
+  redfish_media_map: |
+    Map the pluggable module type to NRM media where the platform reports one; leave media unset
+    rather than guessing, since a wrong media value fails a cabling check for the wrong reason.
+  resolve_odata_id: |
+    Resolve an @odata.id reference to the NRM record already imported from that Redfish path.
+    Requires importing the chassis tree parent-first, which the importer guarantees by walking
+    Links.ContainedBy upward before inserting.

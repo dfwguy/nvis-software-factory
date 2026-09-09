@@ -1,0 +1,53 @@
+---
+description: React 19 / Kaizen-first frontend conventions
+globs: frontend/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Frontend conventions
+
+React 19, Vite 8, TypeScript, built to `static/spa/` and served by Flask. Same stack as
+`nvis-rack-status`, so patterns transfer.
+
+## Styling: Kaizen first, MUI second, custom last
+
+Load order in `main.tsx` matters and is not arbitrary:
+
+```typescript
+import "./styles/kaizen/base.css";
+import "./styles/kaizen/components.css";
+import "./index.css";
+```
+
+Kaizen UI Foundations CSS is **vendored** under `src/styles/kaizen/` rather than fetched from a CDN,
+so the build works air-gapped. If you refresh it from upstream, re-apply the font URL rewrite from
+the CDN path to `./fonts/`.
+
+Reach for a Kaizen class before an MUI component, and an MUI component before writing CSS. The
+NVIDIA green (`#76B900`) lives in `theme.ts`; do not hardcode it anywhere else.
+
+## Routing
+
+`HashRouter`, not `BrowserRouter`. The SPA is served by Flask from a static directory, and hash
+routes mean no server-side route configuration and no 404 on refresh.
+
+## Talking to the backend
+
+All requests go through `src/lib/apiFetch.ts`. It uses same-origin relative URLs with
+`credentials: "same-origin"` — there is no CORS in production, by design — and it handles the
+401-then-refresh dance in one place.
+
+Domain calls live in `src/services/*.ts` and return parsed types, not `Response` objects. A
+component should never see `{ok: false}`; the service turns that into a thrown error.
+
+## State
+
+React Context, no Redux or Zustand. Providers live in `src/context/`. If a piece of state is only
+used by one subtree, it does not need a provider.
+
+## Long-running assessments
+
+An assessment run takes minutes and streams progress. Views subscribe rather than poll where
+possible, and **must** render the intermediate states honestly — a run that is waiting on the LLM
+says so. Never show a spinner that implies work is happening when the run has actually failed and
+is awaiting retry.

@@ -1,0 +1,263 @@
+# BCM rack-import / bcm-netautogen <-> NRM crosswalk.
+#
+# This is the one that matters most in practice, and the reason is worth stating plainly: the real
+# upstream inputs to a bring-up are not a standard, they are NVIDIA's own files. The factory rack
+# inventory sheet, the P2P cabling file, and bcm-netautogen JSON are what actually exist at the
+# start of a deployment, weeks before anything is racked and long before UFM or a BMC can be
+# reached. Every `expected` record in NRM originates here.
+#
+# That makes this the `expected` side of every validation the OVA team runs, and the counterpart to
+# ufm.yaml's `observed` side. The diff between the two is the deliverable.
+#
+# Direction is both: NRM imports the plan, and exports back a corrected plan once reconciliation
+# has found the miscables -- which is the loop that makes the next deployment faster than the last.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: bcm
+system_version: "netautogen >=1.0"
+role: planning_input
+authority: |
+  Authoritative for INTENT: what was ordered, what is meant to be racked where, and what is meant
+  to be cabled to what. Says nothing about reality -- a rack inventory file is correct until the
+  first substitution at the factory, and the P2P file is correct until the first cable goes into
+  the adjacent cage.
+join:
+  nrm_field: "identifiers[format=SERIAL].value"
+  system_field: serial
+  note: |
+    Serial is the only identifier present this early: GUIDs and UUIDs are not known until hardware
+    powers on. Scope with the manufacturer. Where the inventory file has no serial column, the
+    fallback join is hostname against Resource.name, which is weaker and duplicates records if
+    hostnames are later reassigned.
+
+entities:
+  - nrm_entity: resource
+    system_model: rack inventory row / netautogen node object
+    direction: both
+    note: |
+      One row per node. The file is per-rack, so rack identity comes from the filename or a header
+      cell rather than from the row -- an importer must carry it in, and getting this wrong silently
+      merges two racks into one.
+    fields:
+      - nrm: name
+        system: hostname
+        direction: both
+      - nrm: "identifiers[format=SERIAL].value"
+        system: serial
+        direction: both
+      - nrm: parent_id
+        system: rack
+        direction: import
+        transform: resolve_rack_by_name
+      - nrm: location_id
+        system: rack + rack_unit
+        direction: import
+        transform: resolve_location
+      - nrm: resource_type_id
+        system: model
+        direction: import
+        transform: resolve_type_by_model
+      - nrm: lifecycle
+        system: _constant
+        direction: import
+        transform: constant_planned
+        note: |
+          Everything from a planning file is `planned` until something observes it. Importing it as
+          `active` would make an empty data hall look fully deployed, which is precisely the kind
+          of false confidence this contract exists to prevent.
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_expected
+      - nrm: "identifiers[format=MACAddress].value"
+        system: bmc_mac
+        direction: import
+        note: |
+          Present in netautogen output because it is what PXE and BMC discovery match on. This is
+          the earliest identifier that survives into the observed world, which makes it the most
+          valuable field in the file for reconciliation.
+      - nrm: attributes.bmc_ip
+        system: bmc_ip
+        direction: both
+      - nrm: external_refs.bcm
+        system: node_id
+        direction: import
+    unmapped_nrm:
+      - field: domain_id
+        reason: |
+          netautogen emits a category or configuration overlay name, which is close to a compute
+          domain but not the same thing. Mapping it automatically would create a domain per
+          configuration variant rather than per logical grouping.
+      - field: part_location
+        reason: |
+          The inventory file addresses a node by rack unit, not by position within a chassis. For
+          NVL72 trays this is adequate; for anything inside a tray it is not.
+
+  - nrm_entity: port
+    system_model: P2P cabling file endpoint column
+    direction: import
+    note: |
+      Ports are IMPLIED by the cabling file rather than listed in it: each row names two endpoints,
+      and each endpoint is a port that must exist. Importing the cabling file therefore creates
+      ports as a side effect, and an endpoint naming a port the ResourceType has no template for is
+      a real finding -- it means the plan cables a port the hardware does not have.
+    fields:
+      - nrm: name
+        system: "src_port / dst_port"
+        direction: import
+      - nrm: resource_id
+        system: "src_host / dst_host"
+        direction: import
+        transform: resolve_by_hostname
+      - nrm: port_class
+        system: link_type
+        direction: import
+        transform: p2p_class_map
+        values:
+          ib: infiniband
+          infiniband: infiniband
+          eth: ethernet
+          ethernet: ethernet
+          nvlink: nvlink
+          mgmt: management
+          bmc: management
+          console: console
+          power: power
+      - nrm: speed_gbps
+        system: speed
+        direction: import
+        transform: parse_speed
+      - nrm: media
+        system: cable_type
+        direction: import
+        transform: p2p_media_map
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_expected
+    unmapped_nrm:
+      - field: "identifiers[]"
+        reason: |
+          Port-level identity is not knowable before power-on. Port GUIDs and MACs arrive from
+          discovery and are attached during reconciliation.
+      - field: breakout_of
+        reason: |
+          P2P files express breakouts inconsistently -- sometimes as a suffixed port name, sometimes
+          as multiple rows against one cage. Requires site-specific parsing, so it is left to the
+          importer rather than declared as a portable mapping.
+
+  - nrm_entity: link
+    system_model: P2P cabling file row
+    direction: both
+    note: |
+      One row, one expected link. This is the single most valuable import in the contract: it is the
+      only statement of intended topology that exists, and without it "observed" has nothing to be
+      compared against and a fabric sweep is just a list.
+    fields:
+      - nrm: key
+        system: "src_host_src_port : dst_host_dst_port"
+        direction: import
+        transform: link_key
+      - nrm: a_port_id
+        system: "src_host + src_port"
+        direction: import
+        transform: resolve_port
+      - nrm: b_port_id
+        system: "dst_host + dst_port"
+        direction: import
+        transform: resolve_port
+      - nrm: link_class
+        system: link_type
+        direction: import
+        transform: p2p_class_map
+      - nrm: speed_gbps
+        system: speed
+        direction: import
+        transform: parse_speed
+      - nrm: cable.length_m
+        system: cable_length
+        direction: import
+        transform: parse_length
+      - nrm: cable.part_number
+        system: cable_pn
+        direction: import
+      - nrm: cable.cable_type
+        system: cable_type
+        direction: import
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_expected
+    unmapped_nrm:
+      - field: operational_state
+        reason: |
+          A plan has no operational state. Leaving it unset rather than defaulting to `unknown` is
+          deliberate: an expected link with a state field would invite a consumer to read it.
+      - field: supporting_link_id
+        reason: |
+          P2P files list physical cables. NVLink logical topology within an NVL72 is a property of
+          the rack design rather than of the cabling plan, and is generated from the ResourceType.
+
+  - nrm_entity: location
+    system_model: rack inventory header / netautogen rack object
+    direction: import
+    fields:
+      - nrm: site
+        system: site
+        direction: import
+      - nrm: room
+        system: room
+        direction: import
+      - nrm: row
+        system: row
+        direction: import
+      - nrm: rack
+        system: rack
+        direction: import
+      - nrm: rack_unit
+        system: rack_unit
+        direction: import
+      - nrm: observation
+        system: _constant
+        direction: import
+        transform: constant_expected
+    unmapped_nrm:
+      - field: power_zone
+        reason: |
+          Facility power zoning is not in a rack inventory file. It comes from Nautobot or from the
+          facility drawing.
+      - field: cooling_zone
+        reason: |
+          Not in a rack inventory file either. Which CDU or manifold group serves a rack position
+          is a facility fact, and it arrives from Nautobot or from the commissioning survey.
+      - field: coordinates
+        reason: |
+          Rack inventory files address a position by rack and rack unit, never by room-relative
+          metres. Coordinates come from the facility floor plan.
+
+transforms:
+  constant_expected: 'Set observation to "expected". A planning file states intent, never measurement.'
+  constant_planned: 'Set lifecycle to "planned".'
+  p2p_class_map: Use the values table on the field.
+  p2p_media_map: |
+    Map the file's cable_type string to NRM media. Site spellings vary ("QSFP-DD", "qsfpdd",
+    "400G DAC"), so the importer needs a per-site alias table; leave media unset rather than
+    guessing.
+  parse_speed: |
+    Parse a speed string to gigabits per second. "400G" -> 400, "4x100G" -> 400, "200Gb/s" -> 200.
+  parse_length: 'Parse a length string to metres. "3m" -> 3, "1.5 m" -> 1.5, "10ft" -> 3.048.'
+  resolve_rack_by_name: 'Resolve the rack name to the Resource of class `rack` for that site.'
+  resolve_location: 'Find or create the Location for this site/room/row/rack/rack_unit combination.'
+  resolve_type_by_model: |
+    Resolve the model string to an existing ResourceType. Fail the row rather than minting one --
+    a ResourceType created from a spreadsheet cell has no u_height, no TDP and no cooling
+    requirement, so it silently breaks power budgeting and cooling validation later.
+  resolve_by_hostname: |
+    Resolve a hostname to a Resource within the import scope. Ambiguity across sites is an error,
+    not a first match.
+  resolve_port: 'Resolve (hostname, port name) to a Port, creating it if the ResourceType allows it.'
+  link_key: |
+    Call contracts.identity.link_key with both endpoints. This must be the same function UFM import
+    uses, or expected and observed links will not collide and every link will read as both missing
+    and unexpected.

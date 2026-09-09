@@ -1,0 +1,121 @@
+# DCGM exporter labels <-> NRM crosswalk.
+#
+# Narrow on purpose, and the narrowness is the point. DCGM is telemetry: it emits a metric per GPU
+# per scrape, and NRM is an inventory. Importing DCGM metrics into NRM would turn a slow inventory
+# database into a badly performing time-series database, which is the specific mistake that makes
+# an asset system stop being trusted.
+#
+# What this crosswalk is for is JOINING, not importing. It maps DCGM's Prometheus labels onto NRM
+# identity so a dashboard can go from "GPU 3 on node gpu-042 is throttling" to "that node is in
+# rack R14, on cooling path CDU-01 loop A, which is running below design flow". That traversal is
+# the converged IT/OT view, and the only thing needed to make it possible is agreement on the join
+# keys -- which is all that is declared here.
+#
+# Export-only role: NRM supplies labels DCGM cannot know (rack, cooling path, domain), which get
+# attached by the scrape config or by a relabeling rule. Nothing flows the other way.
+
+crosswalk_version: v0.1
+nrm_version: v0.1
+system: dcgm
+system_version: "dcgm-exporter >=3.3"
+role: telemetry
+authority: |
+  Authoritative for observed GPU health and utilization, at a scrape cadence. Not an inventory
+  source: it knows only the GPUs on hosts it runs on, has no view of anything else in the rack, and
+  keeps no history NRM should mirror.
+join:
+  nrm_field: "identifiers[format=GPU_UUID].value"
+  system_field: UUID
+  note: |
+    GPU_UUID exists as an NVIS extension to DurableNameFormat specifically for this join. The value
+    keeps its `GPU-` prefix verbatim, because that prefix is present everywhere the value appears --
+    nvidia-smi, DCGM labels, NVML -- and stripping it would break every existing join.
+
+entities:
+  - nrm_entity: resource
+    system_model: DCGM_FI_DEV_* metric labels
+    direction: export
+    note: |
+      The GPU Resource already exists in NRM from Redfish discovery or the inventory file. This
+      mapping identifies WHICH one a metric belongs to, and supplies the topology labels DCGM has
+      no way to know.
+    fields:
+      - nrm: "identifiers[format=GPU_UUID].value"
+        system: UUID
+        direction: export
+        note: The join key. Present on every dcgm-exporter metric.
+      - nrm: name
+        system: Hostname
+        direction: export
+        unreliable: true
+        note: |
+          DCGM's Hostname is the GPU's HOST, not the GPU itself -- so it matches the host node's
+          Resource.name, not the GPU Resource's. Marked unreliable because that off-by-one-level
+          mismatch is easy to wire up wrongly and produces a dashboard that looks right.
+      - nrm: part_location.location_ordinal_value
+        system: gpu
+        direction: export
+        note: |
+          DCGM's `gpu` label is the device index within the host, which is the ordinal within the
+          parent -- exactly Redfish PartLocation's LocationOrdinalValue. Note the index is not
+          stable across reboots on all platforms, so it is a display aid and never a join key.
+      - nrm: attributes.pci_bus_id
+        system: pci_bus_id
+        direction: export
+      - nrm: external_refs.dcgm
+        system: device
+        direction: export
+    unmapped_nrm:
+      - field: lifecycle
+        reason: |
+          Deliberately NOT mapped from DCGM health. A throttling GPU is not a lifecycle change, and
+          writing telemetry into a lifecycle field would make the inventory flap with load and give
+          two systems different answers about the same GPU.
+      - field: observation
+        reason: |
+          Telemetry is observed by definition, but it is not an inventory observation. The GPU's
+          existence is asserted by discovery; DCGM only reports on it.
+      - field: resource_type_id
+        reason: |
+          DCGM reports a modelName string, which is a display name rather than a SKU. Type comes
+          from discovery.
+
+  - nrm_entity: domain
+    system_model: Prometheus relabel target labels
+    direction: export
+    note: |
+      What NRM contributes back to the observability stack: rack, cooling path and domain labels
+      attached to every GPU metric. This is what makes "show me GPU throttling by cooling path" a
+      query instead of a correlation exercise across two systems.
+    fields:
+      - nrm: name
+        system: nvis_domain
+        direction: export
+      - nrm: domain_class
+        system: nvis_domain_class
+        direction: export
+    unmapped_nrm:
+      - field: member_resource_ids
+        reason: |
+          A label set is per-target. Membership is expressed by every member carrying the domain
+          label, not by a list on the domain.
+      - field: owner
+        reason: |
+          Deliberately not exported as a metric label. Owner changes on a human cadence and would
+          create a new time series on every reorganization, which is how a Prometheus instance
+          acquires millions of dead series.
+
+transforms: {}
+
+# Recommended label set for NRM-supplied labels on GPU metrics. Not part of the entity mappings
+# because these are labels a scrape config adds, not fields either system stores. Listed here
+# because agreeing on the names is the entire integration, and every team inventing its own prefix
+# is how the same fact ends up under four label names.
+recommended_labels:
+  nvis_resource_id: NRM Resource id of the GPU.
+  nvis_host_resource_id: NRM Resource id of the host node.
+  nvis_rack: Location.rack of the containing rack.
+  nvis_site: Location.site.
+  nvis_domain: Domain.name of the compute domain.
+  nvis_cooling_path_id: CoolingPath.id serving this resource -- the field that makes the IT/OT join work.
+  nvis_nvlink_domain: Domain.name of the NVLink domain, for NVL72 fault correlation.

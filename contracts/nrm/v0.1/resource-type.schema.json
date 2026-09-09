@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nvidia.com/nvis/nrm/v0.1/resource-type.schema.json",
+  "title": "ResourceType",
+  "description": "The catalog object: a kind of thing, not a thing. One GB200 NVL72 compute tray SKU is one ResourceType; the seventy-two of them in a rack are seventy-two Resources pointing at it.\n\nThis split is where partner data lands. Dell, Supermicro and ASUS supply almost entirely type data -- dimensions, power draw, port layout, coolant requirements -- and almost no instance data beyond serials. Without the split, every partner datasheet fact would be copied onto every unit, and correcting a published power figure would mean an UPDATE across thousands of rows instead of one.",
+
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+
+    "resource_class": {
+      "type": "string",
+      "description": "What kind of thing this is, coarsely. Deliberately a closed list: an open vocabulary here is how you end up with `switch`, `Switch`, `network-switch` and `tor` as four classes meaning one thing. Anything genuinely new is a contract change, which is a conversation worth having.",
+      "enum": [
+        "site",
+        "room",
+        "row",
+        "rack",
+        "chassis",
+        "tray",
+        "node",
+        "board",
+        "gpu",
+        "cpu",
+        "dpu",
+        "nic",
+        "switch",
+        "switch_asic",
+        "nvlink_switch",
+        "transceiver",
+        "cable",
+        "cable_cartridge",
+        "power_shelf",
+        "power_supply",
+        "busbar",
+        "pdu",
+        "cdu",
+        "manifold",
+        "cold_plate",
+        "quick_disconnect",
+        "hose",
+        "fan",
+        "storage_device",
+        "bmc",
+        "other"
+      ]
+    },
+
+    "manufacturer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Who made it, as the name appears in contracts and on invoices: NVIDIA, Dell, Supermicro, ASUS, Vertiv, Amphenol. Not the reseller and not the integrator."
+    },
+
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "The manufacturer's model designation, verbatim. `GB200 NVL72` is a model; `gb200-nvl72-rack-v2-final` is a filename."
+    },
+
+    "part_number": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Orderable part number. This is the field procurement and the packing list agree on, which makes it the practical join between a delivery and an inventory record."
+    },
+
+    "name": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Display name. Defaults to manufacturer plus model when absent; present so a site can carry the name its operators already use."
+    },
+
+    "identifiers": {
+      "type": "array",
+      "description": "Type-level identity. Rare but real: a cable SKU with an EUI range, a GPU SKU with a PCI device ID. Instance identity belongs on Resource.",
+      "items": { "$ref": "common.schema.json#/$defs/identifier" },
+      "maxItems": 32
+    },
+
+    "u_height": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 60,
+      "description": "Rack units consumed. Fractional is allowed and necessary: a 1U-per-two-node sled is 0.5."
+    },
+
+    "is_full_depth": { "type": "boolean" },
+
+    "weight_kg": { "type": "number", "minimum": 0 },
+
+    "power": {
+      "type": "object",
+      "description": "Nameplate figures from the datasheet, which are design limits rather than observed draw. Observed power is telemetry and does not belong in a catalog.",
+      "properties": {
+        "max_watts": { "type": "number", "minimum": 0 },
+        "typical_watts": { "type": "number", "minimum": 0 },
+        "thermal_design_watts": {
+          "type": "number",
+          "minimum": 0,
+          "description": "TDP, which is the number cooling capacity is sized against."
+        },
+        "input_voltage": { "type": "string", "maxLength": 64 },
+        "phases": { "type": "integer", "minimum": 1, "maximum": 3 }
+      },
+      "additionalProperties": false
+    },
+
+    "cooling": {
+      "type": "object",
+      "description": "How this type must be cooled. Present on the type because it is a property of the design, and it is what determines whether a rack can be placed in a given room at all.",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["air", "liquid_dlc", "liquid_immersion", "hybrid", "passive"],
+          "description": "dlc is direct-to-chip, which is the GB200/GB300 case."
+        },
+        "coolant": {
+          "type": "string",
+          "enum": ["none", "water", "pg25", "pg30", "dielectric", "other"],
+          "description": "pg25 and pg30 are propylene glycol mixes by volume, which is how the facility specifies them."
+        },
+        "min_flow_lpm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Litres per minute required at design load. Below this the cold plate does not carry the heat, and this is the figure a commissioning check compares against."
+        },
+        "max_inlet_temp_c": { "type": "number" },
+        "max_pressure_kpa": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+
+    "port_templates": {
+      "type": "array",
+      "description": "The ports every instance of this type has. A tray SKU with four OSFP cages produces four Port records per instance, and generating them from the type is what makes a cabling plan checkable before any hardware arrives.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Name pattern, with {n} substituted by index when count > 1: `OSFP{n}` yields OSFP1..OSFP4."
+          },
+          "port_class": { "$ref": "port.schema.json#/properties/port_class" },
+          "count": { "type": "integer", "minimum": 1, "maximum": 1024, "default": 1 },
+          "index_start": { "type": "integer", "minimum": 0, "default": 1 },
+          "media": { "$ref": "port.schema.json#/properties/media" },
+          "speed_gbps": { "type": "number", "minimum": 0 },
+          "lanes": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["name", "port_class"],
+        "additionalProperties": false
+      },
+      "maxItems": 1024
+    },
+
+    "partner": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "The partner whose catalog this entry came from, when it is not the manufacturer -- an OEM rack integrator, for instance. Kept separate so partner-supplied data can be re-imported wholesale without touching NVIDIA-authored entries."
+    },
+
+    "datasheet_url": { "type": "string", "format": "uri", "maxLength": 2048 },
+
+    "lifecycle": {
+      "type": "string",
+      "enum": ["proposed", "qualified", "shipping", "end_of_sale", "end_of_life"],
+      "description": "Where the SKU is in ITS life, which is a different question from where any instance is."
+    },
+
+    "external_refs": { "$ref": "common.schema.json#/$defs/external_refs" },
+    "labels": { "$ref": "common.schema.json#/$defs/labels" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "timestamps": { "$ref": "common.schema.json#/$defs/timestamps" },
+
+    "attributes": {
+      "type": "object",
+      "description": "Type facts the model does not cover. Unlike labels, these are expected to be meaningful -- GPU count, memory capacity, NVLink generation -- and are the queue for the next contract version.",
+      "additionalProperties": true
+    }
+  },
+
+  "required": ["id", "resource_class", "manufacturer", "model"],
+  "additionalProperties": false
+}
