@@ -63,6 +63,22 @@ PASS_ARCHITECTURE = "architecture"
 PASS_REMEDIATION = "remediation"
 PASS_OPEN_QUESTIONS = "open_questions"
 
+#: Keys a pass cannot proceed without, per prompt template.
+#:
+#: Declared here rather than inline at the call sites so that ``test_prompt_contracts.py`` can
+#: check every one against the template that is supposed to produce it. Two of these had drifted
+#: away from their templates -- the architecture pass demanded a `summary` the prompt has never
+#: asked for, and remediation demanded a flat `steps` list from a template that buckets by
+#: urgency. Both failed every assessment at runtime with the model apparently at fault, which is
+#: an expensive way to discover a typo. Keep this keyed by template name, not pass name: the
+#: pillar pass is named per pillar but renders one shared template.
+REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
+    "architecture": ("purpose", "archetype"),
+    "pillar_judgement": ("verdict", "summary"),
+    "remediation": ("headline", "posture", "immediate"),
+    "open_questions": ("questions",),
+}
+
 
 def _pillar_pass(pillar_id: str) -> str:
     return f"judgement:{pillar_id}"
@@ -412,10 +428,7 @@ def _run_architecture(
         assessment_id=assessment_id,
         pass_name=PASS_ARCHITECTURE,
         evidence_digest=evidence_hash,
-        # These are the template's own keys. It asks for `purpose`, and has never asked for a
-        # `summary` -- requiring one failed every assessment at the first pass with the model
-        # blamed for a malformed reply, when the reply matched the prompt exactly.
-        require_keys=("purpose", "archetype"),
+        require_keys=REQUIRED_KEYS["architecture"],
     )
     return data
 
@@ -511,7 +524,7 @@ def _run_pillar(
         assessment_id=assessment_id,
         pass_name=_pillar_pass(pillar.id),
         evidence_digest=evidence_hash,
-        require_keys=("verdict", "summary"),
+        require_keys=REQUIRED_KEYS["pillar_judgement"],
     )
     data["pillar_id"] = pillar.id
     return data
@@ -581,7 +594,7 @@ def _run_remediation(
         assessment_id=assessment_id,
         pass_name=PASS_REMEDIATION,
         evidence_digest=evidence_hash,
-        require_keys=("steps",),
+        require_keys=REQUIRED_KEYS["remediation"],
     )
     return data
 
@@ -616,7 +629,7 @@ def _run_open_questions(
         assessment_id=assessment_id,
         pass_name=PASS_OPEN_QUESTIONS,
         evidence_digest=evidence_hash,
-        require_keys=("questions",),
+        require_keys=REQUIRED_KEYS["open_questions"],
     )
     return data
 

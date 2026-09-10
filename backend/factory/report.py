@@ -420,6 +420,23 @@ def render_agent_plan(
         "",
     ]
 
+    # The model writes this specifically to be pasted at the top of an agent session: what the
+    # repository is and what an agent must respect while changing it. The template has always
+    # produced it and nothing rendered it, so it was paid for on every run and thrown away.
+    posture = str(remediation.get("posture") or "").strip()
+    posture_reason = str(remediation.get("posture_reason") or "").strip()
+    if posture:
+        out += [
+            "## Posture",
+            "",
+            f"**{posture}**" + (f" — {posture_reason}" if posture_reason else ""),
+            "",
+        ]
+
+    preamble = str(remediation.get("agent_preamble") or "").strip()
+    if preamble:
+        out += ["## Context for the agent", "", preamble, ""]
+
     if grouped[Severity.BLOCKER]:
         out += [
             "## Do these first",
@@ -439,45 +456,68 @@ def render_agent_plan(
                 out += [f"  - {finding.remediation}"]
         out += [""]
 
-    steps = remediation.get("steps") or []
-    out += ["## Steps", ""]
-    if not steps:
-        out += ["_No remediation steps were produced._", ""]
-    for index, step in enumerate(steps, start=1):
-        if not isinstance(step, dict):
-            out += [f"### Step {index}", "", str(step), ""]
+    # `prompts/remediation.md` buckets work by urgency rather than returning one flat list, and
+    # the bucket is information: it tells the agent what has to land before anyone else depends on
+    # this repository. Numbering runs across the buckets so "one step, one commit" above still
+    # refers to something unambiguous.
+    buckets: list[tuple[str, str, list[Any]]] = [
+        ("Do first", "Before anyone else depends on this.", remediation.get("immediate") or []),
+        ("Do next", "Once the immediate items are done.", remediation.get("next") or []),
+        ("Later", "Worth doing, not urgent.", remediation.get("later") or []),
+    ]
+
+    if not any(items for _, _, items in buckets):
+        out += ["## Steps", "", "_No remediation steps were produced._", ""]
+
+    index = 0
+    for heading, blurb, items in buckets:
+        if not items:
             continue
-        title = step.get("title") or step.get("action") or f"Step {index}"
-        out += [f"### Step {index}. {title}", ""]
-
-        for key, heading in (
-            ("why", "Why"),
-            ("rationale", "Why"),
-            ("change", "What to change"),
-            ("detail", "What to change"),
-            ("files", "Files"),
-            ("acceptance", "Done when"),
-            ("acceptance_criteria", "Done when"),
-            ("test", "Test to add"),
-            ("risk", "Risk"),
-        ):
-            value = step.get(key)
-            if not value:
+        out += [f"## {heading}", "", blurb, ""]
+        for step in items:
+            index += 1
+            if not isinstance(step, dict):
+                out += [f"### Step {index}", "", str(step), ""]
                 continue
-            if isinstance(value, list):
-                out += [f"**{heading}:**", ""]
-                out += [f"- {item}" for item in value]
-                out += [""]
-            else:
-                out += [f"**{heading}:** {value}", ""]
 
-        related = step.get("addresses") or step.get("findings") or []
-        if related:
-            out += [
-                "**Addresses:** "
-                + ", ".join(f"`{r}`" for r in related if r),
-                "",
-            ]
+            title = step.get("title") or step.get("action") or f"Step {index}"
+            effort = step.get("effort")
+            out += [f"### Step {index}. {title}" + (f" _({effort})_" if effort else ""), ""]
+
+            for key, label in (
+                ("why", "Why"),
+                ("where", "Where"),
+                ("what_to_do", "What to change"),
+                ("verify", "Done when"),
+                ("risk", "Risk"),
+            ):
+                value = step.get(key)
+                if not value:
+                    continue
+                if isinstance(value, list):
+                    out += [f"**{label}:**", ""]
+                    out += [f"- {item}" for item in value]
+                    out += [""]
+                else:
+                    out += [f"**{label}:** {value}", ""]
+
+            related = step.get("addresses") or step.get("findings") or []
+            if related:
+                out += ["**Addresses:** " + ", ".join(f"`{r}`" for r in related if r), ""]
+
+    # Named wrong turns. An agent handed a list of problems will reach for the obvious fix, and
+    # the obvious fix is sometimes the one this repository specifically cannot take.
+    do_not_do = remediation.get("do_not_do") or []
+    if do_not_do:
+        out += ["## Do not do these", ""]
+        for item in do_not_do:
+            if isinstance(item, dict):
+                suggestion = item.get("suggestion") or ""
+                why_not = item.get("why_not") or ""
+                out += [f"- **{suggestion}** — {why_not}" if why_not else f"- **{suggestion}**"]
+            else:
+                out += [f"- {item}"]
+        out += [""]
 
     questions = open_questions.get("questions") or []
     if questions:

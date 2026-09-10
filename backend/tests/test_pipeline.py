@@ -133,13 +133,28 @@ class ScriptedModel:
         ))
 
     def _answer(self, pass_name: str, user: str) -> dict:
+        # These objects mirror prompts/*.md exactly. A fake that answers in a shape the real
+        # template never asks for lets the consumer drift away from the prompt with the suite
+        # still green, which is how `require_keys=("summary",)` survived against a template that
+        # asks for `purpose`.
         if pass_name == "architecture":
             return {
-                "summary": "A Flask service that records rack validation results in memory.",
+                "purpose": "A Flask service that records rack validation results in memory.",
                 "archetype": "http-service",
-                "purpose": "Collect validation results per rack.",
-                "state_management": "A module-level dict.",
-                "entry_points": ["app.py"],
+                "components": [
+                    {"name": "app", "role": "HTTP entry point", "evidence": "app.py:1"},
+                ],
+                "state": {
+                    "what_state_exists": "Validation results per rack.",
+                    "where_it_lives": "in-memory",
+                    "evidence": "app.py:4",
+                },
+                "external_dependencies": [],
+                "entry_points": [
+                    {"kind": "http-route", "name": "POST /results", "evidence": "app.py:8"},
+                ],
+                "who_depends_on_it": "undetermined",
+                "not_determinable": ["Whether the results exist anywhere upstream."],
             }
         if pass_name.startswith("judgement:"):
             pillar_id = pass_name.split(":", 1)[1]
@@ -175,17 +190,26 @@ class ScriptedModel:
             return answer
         if pass_name == "remediation":
             return {
-                "steps": [
+                "headline": "The only copy of the results is a dict in one process.",
+                "posture": "do-not-deploy",
+                "posture_reason": "A restart loses every recorded validation result.",
+                "immediate": [
                     {
                         "title": "Persist results to SQLite on a bind mount",
                         "why": "The dict is the only copy.",
-                        "change": "Replace the module dict with a SQLite table.",
-                        "files": ["app.py", "docker-compose.yml"],
-                        "acceptance": "Results survive `docker compose restart`.",
-                        "test": "A test that writes, restarts, and reads back.",
+                        "where": "app.py, docker-compose.yml",
+                        "what_to_do": "Replace the module dict with a SQLite table.",
+                        "verify": "Results survive `docker compose restart`.",
+                        "effort": "hours",
                         "addresses": ["container_without_volume"],
                     },
                 ],
+                "next": [],
+                "later": [],
+                "do_not_do": [
+                    {"suggestion": "Add a named Docker volume", "why_not": "`docker volume prune`"},
+                ],
+                "agent_preamble": "A small Flask service recording rack validation results.",
             }
         if pass_name == "open_questions":
             return {
@@ -194,8 +218,9 @@ class ScriptedModel:
                      "why": "It decides whether this is a blocker or an inconvenience."},
                 ],
             }
-        return {"summary": "unhandled pass", "verdict": "undetermined", "steps": [],
-                "questions": []}
+        return {"purpose": "unhandled pass", "archetype": "undetermined",
+                "verdict": "undetermined", "headline": "none", "posture": "undetermined",
+                "immediate": [], "questions": []}
 
 
 @pytest.fixture
@@ -576,6 +601,6 @@ def test_the_api_summary_exposes_findings_and_progress(completed_run):
     assert summary["assessment"]["status"] == "complete"
     assert summary["architecture"]["archetype"] == "http-service"
     assert "durability" in summary["judgements"]
-    assert summary["remediation"]["steps"]
+    assert summary["remediation"]["immediate"]
     assert summary["severity_counts"].get("blocker", 0) >= 1
     assert len(summary["artifacts"]) == 5
