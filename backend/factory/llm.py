@@ -99,6 +99,14 @@ class Completion:
     usage: Usage
     duration_ms: int
     raw: dict[str, Any] = field(default_factory=dict)
+    #: The endpoint's own account of why generation stopped. ``"length"`` means the output was cut
+    #: mid-token, which is the difference between a model that cannot produce JSON and one that
+    #: was not given room to finish it.
+    finish_reason: str | None = None
+
+    @property
+    def truncated(self) -> bool:
+        return self.finish_reason == "length"
 
 
 def _endpoint() -> str:
@@ -217,7 +225,7 @@ def complete(
                 )
 
             body = response.json()
-            text, usage = _extract(body)
+            text, usage, finish_reason = _extract(body)
             status = "ok"
 
             duration_ms = int((time.monotonic() - started) * 1000)
@@ -229,7 +237,7 @@ def complete(
             )
             return Completion(
                 text=text, model=model, prompt_version=prompt_version, temperature=temp,
-                usage=usage, duration_ms=duration_ms, raw=body,
+                usage=usage, duration_ms=duration_ms, raw=body, finish_reason=finish_reason,
             )
 
         except (_Retry, requests.Timeout, requests.ConnectionError) as exc:
@@ -278,7 +286,7 @@ class _Retry(Exception):
         self.response = response
 
 
-def _extract(body: dict[str, Any]) -> tuple[str, Usage]:
+def _extract(body: dict[str, Any]) -> tuple[str, Usage, str | None]:
     """Pull the message text and token usage out of an OpenAI-shaped response."""
     choices = body.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -286,8 +294,8 @@ def _extract(body: dict[str, Any]) -> tuple[str, Usage]:
 
     message = choices[0].get("message") or {}
     text = message.get("content")
+    finish = choices[0].get("finish_reason")
     if not isinstance(text, str) or not text.strip():
-        finish = choices[0].get("finish_reason")
         if finish == "length":
             raise LlmBadResponse(
                 "the model hit its output limit before producing anything usable. Raise "
@@ -296,10 +304,13 @@ def _extract(body: dict[str, Any]) -> tuple[str, Usage]:
         raise LlmBadResponse(f"the response carried no content (finish_reason={finish!r})")
 
     reported = body.get("usage") or {}
+    # `finish` is carried out rather than acted on here: a truncated response is still the best
+    # evidence available about what went wrong, and the caller that asked for JSON is the one that
+    # can tell "cut off mid-string" from "the model wrote prose around it".
     return text, Usage(
         prompt_tokens=int(reported.get("prompt_tokens") or 0),
         completion_tokens=int(reported.get("completion_tokens") or 0),
-    )
+    ), finish
 
 
 def _record(
@@ -371,6 +382,19 @@ def complete_json(
     try:
         data = _parse(completion.text)
     except ValueError as first_error:
+        # A cut-off response is not a model that cannot write JSON, and asking it to try again
+        # produces the same truncation at the same offset for the same cost. The old behaviour
+        # reported this as "did not return parseable JSON after a correction attempt", which
+        # sends you to inspect the model's JSON discipline when the answer is that it was never
+        # given room to close the object.
+        if completion.truncated:
+            raise LlmBadResponse(
+                f"{prompt_version} was cut off at the output limit after "
+                f"{completion.usage.completion_tokens} tokens, so its JSON is incomplete "
+                f"({first_error}). Raise NVSF_LLM_MAX_OUTPUT_TOKENS, or narrow what this pass is "
+                f"asked to produce. Retrying will truncate identically."
+            ) from first_error
+
         _logger.warning(
             "llm: %s returned unparseable JSON (%s); asking once for a correction",
             prompt_version, first_error,
@@ -386,6 +410,11 @@ def complete_json(
         try:
             data = _parse(retry.text)
         except ValueError as second_error:
+            if retry.truncated:
+                raise LlmBadResponse(
+                    f"{prompt_version} was cut off at the output limit on the correction attempt "
+                    f"too ({second_error}). Raise NVSF_LLM_MAX_OUTPUT_TOKENS."
+                ) from second_error
             raise LlmBadResponse(
                 f"{prompt_version} did not return parseable JSON after a correction attempt: "
                 f"{second_error}"
@@ -395,6 +424,7 @@ def complete_json(
             text=retry.text, model=retry.model, prompt_version=prompt_version,
             temperature=retry.temperature, usage=completion.usage,
             duration_ms=completion.duration_ms + retry.duration_ms, raw=retry.raw,
+            finish_reason=retry.finish_reason,
         )
 
     missing = [k for k in require_keys if k not in data]

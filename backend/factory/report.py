@@ -439,11 +439,18 @@ def render_agent_plan(
 
     if grouped[Severity.BLOCKER]:
         out += [
-            "## Do these first",
+            # Named for what these are, not for when to do them. This section used to be
+            # "Do these first", which sat directly above the remediation plan's "Do first"
+            # bucket and read as the same instruction twice -- two headings a paragraph apart,
+            # differing by one word, the first listing findings and the second listing steps.
+            # A reader cannot tell which one is the thing to work from.
+            "## Blockers",
             "",
             (
                 "Each of these means data loss, credential exposure, or an unauthenticated path "
-                "to changing state. Nothing else in this plan matters as much."
+                "to changing state. Nothing else in this plan matters as much. They are listed "
+                "here as findings, with the standard's remediation pattern for each; the "
+                "numbered plan below is the order to actually work in."
             ),
             "",
         ]

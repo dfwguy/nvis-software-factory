@@ -487,3 +487,84 @@ def test_health_llm_returns_503_when_unreachable(app_client, monkeypatch):
     response = app_client.get("/api/health/llm")
     assert response.status_code == 503
     assert response.get_json()["ok"] is False
+
+
+# ── Truncation is not a JSON-discipline problem ──────────────────────────────────────────────
+
+
+def _truncated_response(content: str, completion_tokens: int = 4096):
+    """A completion the endpoint stopped mid-token because the output limit was reached."""
+    return _Response(200, {
+        "choices": [{"message": {"content": content}, "finish_reason": "length"}],
+        "usage": {"prompt_tokens": 900, "completion_tokens": completion_tokens},
+    })
+
+
+def test_a_truncated_json_response_is_reported_as_a_limit_not_bad_json(llm_configured, monkeypatch):
+    """The remediation pass failed this way and the message blamed the model.
+
+    An object cut off mid-string is not a model that cannot write JSON. It was never given room
+    to close the brace, and the old wording -- "did not return parseable JSON after a correction
+    attempt" -- sent the reader to inspect the wrong thing entirely.
+    """
+    from factory import llm
+
+    truncated = '{"headline": "the only copy of the results is a dict in one pro'
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _truncated_response(truncated))
+    monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
+
+    with pytest.raises(llm.LlmBadResponse) as caught:
+        llm.complete_json("s", "u", prompt_version="remediation@1")
+
+    message = str(caught.value)
+    assert "output limit" in message
+    assert "NVSF_LLM_MAX_OUTPUT_TOKENS" in message
+    assert "4096 tokens" in message
+
+
+def test_a_truncated_response_does_not_buy_a_correction_retry(llm_configured, monkeypatch):
+    """Retrying truncates identically, at the same offset, for the same money."""
+    from factory import llm
+
+    calls: list[int] = []
+
+    def _post(*_args, **_kwargs):
+        calls.append(1)
+        return _truncated_response('{"headline": "cut off here')
+
+    monkeypatch.setattr(requests, "post", _post)
+    monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
+
+    with pytest.raises(llm.LlmBadResponse):
+        llm.complete_json("s", "u", prompt_version="remediation@1")
+
+    assert len(calls) == 1, "a truncated response must not trigger the json-fix retry"
+
+
+def test_unparseable_but_complete_json_still_gets_its_correction_retry(llm_configured, monkeypatch):
+    """The retry is worth keeping for what it was for: a model that wrapped the object in prose."""
+    from factory import llm
+
+    responses = [
+        _chat_response("Here you go:\n\nnot json at all"),
+        _chat_response('{"purpose": "a tool", "archetype": "cli-tool"}'),
+    ]
+    monkeypatch.setattr(requests, "post", lambda *a, **k: responses.pop(0))
+    monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
+
+    data, _ = llm.complete_json("s", "u", prompt_version="architecture@1")
+
+    assert data["purpose"] == "a tool"
+    assert not responses, "the correction retry should have been used"
+
+
+def test_finish_reason_is_carried_on_the_completion(llm_configured, monkeypatch):
+    """Provenance: whether the endpoint stopped us is part of what a run recorded."""
+    from factory import llm
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _chat_response("done"))
+
+    completion = llm.complete("s", "u", prompt_version="t@1")
+
+    assert completion.finish_reason == "stop"
+    assert completion.truncated is False

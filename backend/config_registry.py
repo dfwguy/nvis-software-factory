@@ -213,8 +213,11 @@ register(Setting(
 ))
 register(Setting(
     env="NVSF_LLM_MAX_OUTPUT_TOKENS", section="llm", key="max_output_tokens", type="int",
-    default="4096",
-    description="Upper bound on a single completion.",
+    default="8192",
+    description="Upper bound on a single completion. The remediation pass is the tallest: it "
+                "returns three buckets of steps, each with a rationale, the files involved and a "
+                "verification, so a repository with many findings genuinely needs the room. At "
+                "4096 it was cut off mid-string and the run failed on unparseable JSON.",
 ))
 register(Setting(
     env="NVSF_LLM_EVIDENCE_BUDGET_CHARS", section="llm", key="evidence_budget_chars", type="int",

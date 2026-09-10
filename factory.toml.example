@@ -58,9 +58,12 @@ timeout_sec = 300
 # env: NVSF_LLM_EVIDENCE_BUDGET_CHARS
 evidence_budget_chars = 120000
 
-# Upper bound on a single completion.
+# Upper bound on a single completion. The remediation pass is the tallest: it returns three
+# buckets of steps, each with a rationale, the files involved and a verification, so a
+# repository with many findings genuinely needs the room. At 4096 it was cut off mid-string and
+# the run failed on unparseable JSON.
 # env: NVSF_LLM_MAX_OUTPUT_TOKENS
-max_output_tokens = 4096
+max_output_tokens = 8192
 
 # Bounded retries with exponential backoff, on transport errors and 429/5xx only.
 # env: NVSF_LLM_MAX_RETRIES
