@@ -41,7 +41,7 @@ it.
 ## 2. Get the code and the configuration
 
 ```bash
-git clone https://gitlab-master.nvidia.com/nvis/nvis-software-factory.git /opt/nvsf
+git clone https://gitlab-master.nvidia.com/nvis-ova/nvis-software-factory.git /opt/nvsf
 cd /opt/nvsf
 cp .env.example .env
 ```
