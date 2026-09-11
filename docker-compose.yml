@@ -71,7 +71,13 @@ services:
       # Repeated from the Dockerfile so that `docker compose ps` reports health even for an image
       # pulled from a registry rather than built here. /api/health/live, not /api/health: the deep
       # endpoint needs a session and would 403 forever. See the Dockerfile for the full argument.
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${NVSF_PORT:-8000}/api/health/live || exit 1"]
+      # https first, then http. gunicorn serves TLS whenever NVSF_TLS_CERT is set, which is every
+      # production deployment, and a plaintext request to a TLS socket fails the handshake -- so a
+      # correctly configured deployment reported unhealthy forever while serving perfectly well.
+      # -k because the certificate is issued for the public DNS name and this dials 127.0.0.1,
+      # which no valid certificate can match. The fallback keeps the development path working,
+      # where TLS is off by design.
+      test: ["CMD-SHELL", "curl -fsSk https://127.0.0.1:${NVSF_PORT:-8000}/api/health/live || curl -fsS http://127.0.0.1:${NVSF_PORT:-8000}/api/health/live"]
       interval: 30s
       timeout: 5s
       start_period: 30s

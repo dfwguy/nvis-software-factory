@@ -1,0 +1,35 @@
+# Loopback development overlay — mock identity provider, no TLS, no OIDC ticket needed.
+#
+#   docker compose -f docker-compose.yml -f compose.dev.yml up -d --build
+#
+# NOT auto-loaded. Named compose.dev.yml rather than docker-compose.override.yml on purpose: an
+# override file is picked up silently by a bare `docker compose up`, and this one turns off
+# authentication. It has to be asked for by name.
+#
+# WHY HOST NETWORKING
+# -------------------
+# The startup gate allows the mock provider only when NVSF_BIND_ADDR is loopback, and gunicorn
+# binds exactly that address. Under the default bridge network a published port forwards to the
+# container's eth0 address, so a process bound to the container's 127.0.0.1 is unreachable from
+# the host -- the port answers connection refused while the container reports healthy. Sharing the
+# host network namespace makes the container's loopback the host's loopback, so the bind the gate
+# demands is the bind you can actually reach, and still only from this VM.
+services:
+  factory:
+    network_mode: host
+    # Reset rather than override: with host networking there is no port to publish, and compose
+    # appends to sequences it inherits instead of replacing them.
+    ports: !reset []
+
+    environment:
+      # Both conditions the gate checks independently. Either alone is refused.
+      NVSF_ENV: development
+      NVSF_OIDC_MOCK: "true"
+      NVSF_BIND_ADDR: 127.0.0.1
+      NVSF_PORT: "8000"
+
+      # Plain http, matching the bind. Development relaxes the TLS requirement; emptying the cert
+      # paths is what actually stops gunicorn serving https, since it reads them from these.
+      NVSF_TLS_CERT: ""
+      NVSF_TLS_KEY: ""
+      NVSF_PUBLIC_URL: http://127.0.0.1:8000

@@ -1,0 +1,74 @@
+# nginx on 80/443 in front of the application.
+#
+#   docker compose -f docker-compose.yml -f compose.proxy.yml up -d
+#
+# Requires a certificate for the public DNS name in ${NVSF_HOST_TLS_DIR} as fullchain.pem and
+# privkey.pem, readable by UID 10001. Both containers read it: nginx to terminate 443, gunicorn to
+# serve the encrypted upstream hop. See deploy/nginx.conf for why that hop stays encrypted.
+#
+# NVSF_PUBLIC_URL must have no port (https://host/), and the OIDC redirect URI registered with
+# the provider must match it exactly.
+services:
+  factory:
+    # Not published to the host any more: nginx reaches it over the compose network. Removing the
+    # binding is the point of putting a proxy here -- otherwise 8443 stays open on 0.0.0.0 and
+    # bypasses the proxy entirely, including its port-80 redirect.
+    ports: !reset []
+
+  nginx:
+    # stable-alpine rather than a digest so this file works before you have pulled it once. Pin it
+    # to a digest for the real deployment; `docker image inspect` prints the one you tested.
+    image: nginx:stable-alpine
+    container_name: nvsf-nginx
+    restart: unless-stopped
+
+    depends_on:
+      factory:
+        # Not service_started: nginx caches a failed upstream resolution at startup, so coming up
+        # before the app means 502s until something restarts it.
+        condition: service_healthy
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NVSF_HOST_TLS_DIR:-/etc/nvsf/tls}:/etc/nvsf/tls:ro
+
+    # Same posture as the application container. nginx needs to write its caches and pid file, so
+    # the writable paths are tmpfs rather than a writable layer.
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=64m
+      - /var/run:size=8m
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+    cap_add:
+      # Binding 80 and 443. The stock image starts as root, drops to nginx for workers, and
+      # cannot bind a privileged port without this once ALL is dropped.
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+
+    healthcheck:
+      # End to end through the proxy to the app's liveness route, rather than just `nginx -t`:
+      # a valid configuration pointing at an upstream it cannot reach is the failure worth
+      # catching. --no-check-certificate because this dials 127.0.0.1 and the certificate is
+      # issued for the public name.
+      test: ["CMD-SHELL", "wget -qO /dev/null --no-check-certificate https://127.0.0.1/api/health/live"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
