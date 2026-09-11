@@ -62,7 +62,7 @@ If text is too small, the fix is that a call site picked the wrong step. Find it
 A percentage on `html` is also how you take away a reader's own accessibility setting, and this
 app is text-heavy enough that someone will have one.
 
-## Four traps
+## Five traps
 
 These are recorded because each one cost real time, and each one disguises itself as a different
 problem.
@@ -83,6 +83,15 @@ on order every time. A dead rule sat in that file for the life of the project. E
 declaration that cannot take effect presents exactly as a stylesheet-order problem, which sends
 you off to reorder imports and add override files — none of which can work either, because the
 layer that wins is injected later than all of them.
+
+**A size picked outside the scale is invisible to the scale's checks.** The 10px rule reads
+`kind="..."` attributes, so a component that writes `fontSize: "var(--text-12)"` in an `sx` block
+gets the same size the scale would have given it while nothing is watching. That is how a 12px
+breadcrumb shipped after every `kind=` call site had been corrected. Size text with `kind=` on
+`Text`; if a component genuinely needs a raw declaration — because it styles an anchor and a span
+identically, which `Text` cannot do across a hover state — use the `--text-14` token and expect
+CI to reject `--text-10` and `--text-12` there. Being secondary to a title is a job for
+`--text-color-secondary`, not for a smaller step.
 
 **Fixed pixel widths on anything that holds text.** A drawer, a card, a column declared as `248`
 stays 248px while the text inside it grows with the reader's font size, so labels truncate inside

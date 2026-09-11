@@ -69,6 +69,30 @@ def no_ten_pixel_text() -> list[Problem]:
     return problems
 
 
+def no_small_steps_through_raw_font_size() -> list[Problem]:
+    """A component may not reach for the 10px or 12px step through a raw `fontSize`.
+
+    `no_ten_pixel_text` reads the `kind="..."` attribute, so it only sees sizes chosen through the
+    Kaizen text scale. A component that writes `fontSize: "var(--text-12)"` in an `sx` block picks
+    the same size the scale would have given it and is invisible to that rule -- which is how a
+    12px breadcrumb shipped after the scale had been fixed everywhere else.
+
+    Monospace excerpts are exempt: they track `.nvsf-code` at 12.5px, which is a different
+    decision about code, made deliberately and left alone by the typography work.
+    """
+    pattern = re.compile(r"fontSize:\s*\"var\(--text-(10|12)\)\"")
+    problems: list[Problem] = []
+    for path in _sources():
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            if match := pattern.search(line):
+                message = (
+                    f"`--text-{match.group(1)}` in a raw fontSize. Navigation and chrome are 14px "
+                    f"(`--text-14`); make text secondary with colour, not with a smaller step."
+                )
+                problems.append((path, number, message))
+    return problems
+
+
 def no_dead_body_font_size() -> list[Problem]:
     """`body { font-size }` in index.css cannot take effect, so it must not be written.
 
@@ -162,6 +186,7 @@ def prose_restores_the_reset() -> list[Problem]:
 
 CHECKS = (
     no_ten_pixel_text,
+    no_small_steps_through_raw_font_size,
     no_dead_body_font_size,
     no_root_scaling,
     text_containers_size_in_rem,
