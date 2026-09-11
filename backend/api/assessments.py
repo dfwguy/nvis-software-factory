@@ -45,8 +45,12 @@ def list_assessments():
         offset=offset,
     )
     return ok(
+        # Every assessment that has not reached a terminal state, not the ones this process
+        # happens to hold. `runner.in_flight()` reads a dict owned by one gunicorn worker, so with
+        # more than one worker the list view was told a run had stopped whenever the poll landed
+        # elsewhere -- and the view uses this to decide whether to keep polling.
+        in_flight=[a.id for a in repo.active_assessments()],
         assessments=[a.to_json() for a in assessments],
-        in_flight=runner.in_flight(),
         limit=limit,
         offset=offset,
     )

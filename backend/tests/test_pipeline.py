@@ -595,6 +595,35 @@ def test_the_evidence_document_is_persisted_with_its_hash(completed_run):
     assert repo.get_assessment(assessment_id).evidence_hash
 
 
+def test_progress_comes_from_the_database_not_from_this_process(migrated):
+    """A poll answered by a worker that is not running the job still sees real progress.
+
+    Gunicorn runs several workers; a run lives in exactly one of them. This is the other worker:
+    pass rows exist, `_live` is empty, and the answer has to come out of the database. Before
+    this, such a poll reported `queued` and zero of zero, so the progress bar flickered back to
+    the start on roughly every other request.
+    """
+    repository = repo.upsert_repository(
+        url="https://gitlab-master.nvidia.com/team/thing.git", added_by="test@nvidia.com",
+    )
+    assessment = repo.create_assessment(
+        repository_id=repository.id, created_by="test@nvidia.com",
+    )
+    repo.set_status(assessment.id, Status.REASONING)
+    repo.complete_pass(repo.start_pass(assessment.id, pipeline.PASS_ARCHITECTURE), {"ok": True})
+    repo.start_pass(assessment.id, "judgement:durability")
+
+    assert pipeline.live_state(assessment.id) is None, "nothing is in flight in this process"
+    progress = pipeline.progress_for(repo.get_assessment(assessment.id)).to_json()
+
+    assert progress["stage"] == "reasoning"
+    assert progress["passes_done"] == 1
+    # Architecture, one per pillar, remediation, open questions. Adding a pillar moves this.
+    assert progress["passes_total"] == 11
+    # The pass in flight, named the way the running pipeline would have named it.
+    assert progress["detail"] == "judging Durability and data safety"
+
+
 def test_the_api_summary_exposes_findings_and_progress(completed_run):
     assessment_id, _ = completed_run
     summary = pipeline.summarize_for_api(assessment_id)

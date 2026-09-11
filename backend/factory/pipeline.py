@@ -50,7 +50,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from store import repo
-from store.models import Severity, Status
+from store.models import Assessment, PassStatus, Severity, Status
 
 from factory import acquire, llm, prompts, ratchet, scanners, standards
 from factory import evidence as evidence_mod
@@ -121,6 +121,51 @@ _live_lock = threading.Lock()
 def live_state(assessment_id: str) -> RunState | None:
     with _live_lock:
         return _live.get(assessment_id)
+
+
+def _expected_pass_count(pillar_count: int) -> int:
+    """Architecture, one judgement per pillar, remediation, open questions."""
+    return 3 + pillar_count
+
+
+def _pass_label(pass_name: str) -> str:
+    """The same sentence the running pipeline would show for this pass."""
+    if pass_name == PASS_ARCHITECTURE:
+        return "reading the architecture"
+    if pass_name == PASS_REMEDIATION:
+        return "building the remediation plan"
+    if pass_name == PASS_OPEN_QUESTIONS:
+        return "collecting open questions"
+    if pass_name.startswith("judgement:"):
+        pillar_id = pass_name.split(":", 1)[1]
+        titles = {pillar.id: pillar.title for pillar in standards.load().pillars}
+        return f"judging {titles.get(pillar_id, pillar_id)}"
+    return pass_name
+
+
+def progress_for(assessment: Assessment) -> RunState:
+    """Progress as the database knows it — the only version every web worker agrees on.
+
+    :data:`_live` belongs to one process. Gunicorn runs several and the run executes in exactly
+    one of them, so a poll answered by any other worker reported a default state — `queued`, zero
+    of zero — for a run that was halfway through its reasoning. The progress bar did not creep
+    forward; it flickered between the truth and the beginning.
+
+    The `passes` table already holds what is needed, written before each pass begins precisely so
+    a restart can resume from it. Reading progress from there costs one query and makes every
+    worker answer identically. The detail line is thinner than the live one — it names the pass in
+    flight rather than the scan's fact count — and that is the trade worth making: a progress
+    reading that never goes backwards beats a sentence that shows up on one poll in two.
+    """
+    state = RunState(assessment_id=assessment.id)
+    state.stage = str(assessment.status)
+    rows = repo.pass_states(assessment.id)
+    state.passes_done = sum(1 for row in rows if row["status"] == str(PassStatus.COMPLETE))
+    state.passes_total = _expected_pass_count(len(standards.load().pillars))
+    running = next((row for row in rows if row["status"] == str(PassStatus.RUNNING)), None)
+    if running is not None:
+        state.detail = _pass_label(str(running["pass_name"]))
+    return state
 
 
 def request_cancel(assessment_id: str) -> bool:
@@ -215,7 +260,7 @@ def run(assessment_id: str) -> None:
     clone: acquire.Clone | None = None
     try:
         loaded = standards.load()
-        state.passes_total = 3 + len(loaded.pillars)
+        state.passes_total = _expected_pass_count(len(loaded.pillars))
 
         # ── Acquire ──────────────────────────────────────────────────────────────────────────
         state.stage = "cloning"
@@ -648,7 +693,7 @@ def summarize_for_api(assessment_id: str) -> dict[str, Any]:
     findings = repo.list_findings(assessment_id)
     return {
         "assessment": assessment.to_json(),
-        "progress": (live_state(assessment_id) or RunState(assessment_id)).to_json(),
+        "progress": progress_for(assessment).to_json(),
         "pass_states": repo.pass_states(assessment_id),
         "architecture": passes.get(PASS_ARCHITECTURE),
         "judgements": {
