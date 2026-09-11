@@ -633,3 +633,13 @@ def test_the_api_summary_exposes_findings_and_progress(completed_run):
     assert summary["remediation"]["immediate"]
     assert summary["severity_counts"].get("blocker", 0) >= 1
     assert len(summary["artifacts"]) == 5
+
+
+def test_the_api_summary_names_the_repository_the_run_assessed(completed_run):
+    """The run carries a repository id; a reader three pages deep needs the name and a way back."""
+    assessment_id, _ = completed_run
+    summary = pipeline.summarize_for_api(assessment_id)
+
+    assessment = repo.get_assessment(assessment_id)
+    assert summary["repository"]["id"] == assessment.repository_id
+    assert summary["repository"]["url"]

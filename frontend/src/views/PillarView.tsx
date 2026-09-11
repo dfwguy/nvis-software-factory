@@ -22,6 +22,7 @@ import { CopyButton } from "../components/CopyButton";
 import { ErrorBanner, Loading, Page, SectionHeading } from "../components/Feedback";
 import { DetectorTag, SeverityTag } from "../components/labels";
 import { Markdown } from "../components/Markdown";
+import { useBreadcrumb } from "../context/BreadcrumbContext";
 import { useApi } from "../hooks/useApi";
 import { GOLDEN_PATH, resolveStandardsLink } from "../routes";
 import { getPillar } from "../services/platform";
@@ -30,6 +31,8 @@ export function PillarView() {
   const { pillarId = "" } = useParams<{ pillarId: string }>();
   const loader = useCallback((signal: AbortSignal) => getPillar(pillarId, signal), [pillarId]);
   const { data, loading, error } = useApi(loader, [pillarId]);
+
+  useBreadcrumb({ label: data?.pillar.title });
 
   if (loading && !data) return <Page><Loading rows={8} /></Page>;
   if (error) {

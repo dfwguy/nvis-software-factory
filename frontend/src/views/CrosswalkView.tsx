@@ -27,6 +27,7 @@ import { Link, useParams } from "react-router-dom";
 import { CopyButton } from "../components/CopyButton";
 import { ErrorBanner, Loading, Page, SectionHeading } from "../components/Feedback";
 import { RoleTag } from "../components/labels";
+import { useBreadcrumb } from "../context/BreadcrumbContext";
 import { useApi } from "../hooks/useApi";
 import { CONTRACT_PATH, entityPath } from "../routes";
 import { getCrosswalk } from "../services/contracts";
@@ -41,6 +42,10 @@ export function CrosswalkView() {
   const { system = "" } = useParams<{ system: string }>();
   const loader = useCallback((signal: AbortSignal) => getCrosswalk(system, signal), [system]);
   const { data, loading, error } = useApi(loader, [system]);
+
+  // From the URL, not the response: the system name is in the path, so the breadcrumb is right
+  // on the first paint rather than after the fetch.
+  useBreadcrumb({ label: system });
 
   if (loading && !data) return <Page><Loading rows={10} /></Page>;
   if (error) {

@@ -25,6 +25,7 @@ import { AppLayout } from "./components/AppLayout";
 import { Sidebar } from "./components/Sidebar";
 import { SignInGate } from "./components/SignInGate";
 import { Toolbar } from "./components/Toolbar";
+import { BreadcrumbProvider } from "./context/BreadcrumbProvider";
 import { SessionProvider } from "./context/SessionProvider";
 import { ThemeProvider } from "./context/ThemeProvider";
 import { useApi } from "./hooks/useApi";
@@ -173,7 +174,11 @@ export default function App() {
       <HashRouter>
         <SessionProvider>
           <SignInGate>
-            <Shell />
+            {/* Outside the router's Routes but inside the router: the toolbar reads the trail and
+                the view being rendered writes to it, so the provider has to wrap both. */}
+            <BreadcrumbProvider>
+              <Shell />
+            </BreadcrumbProvider>
           </SignInGate>
         </SessionProvider>
       </HashRouter>

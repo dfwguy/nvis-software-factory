@@ -23,6 +23,8 @@ import { useSession } from "../context/SessionContext";
 import { useThemeMode } from "../context/ThemeContext";
 import { signOutUrl } from "../lib/apiFetch";
 
+import { Breadcrumbs } from "./Breadcrumbs";
+
 interface ToolbarProps {
   title: string;
   blurb?: string;
@@ -44,6 +46,10 @@ export function Toolbar({ title, blurb, sidebarOpen, onOpenSidebar }: ToolbarPro
         )}
 
         <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          {/* Above the title, inside the sticky toolbar: the way out of a page stays reachable at
+              any scroll depth, and an assessment report is long enough that it matters. Renders
+              nothing on a top-level page. */}
+          <Breadcrumbs />
           <Text kind="body/bold/lg">{title}</Text>
           {blurb && (
             <Text

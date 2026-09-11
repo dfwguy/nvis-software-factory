@@ -35,10 +35,11 @@ import { CopyButton } from "../components/CopyButton";
 import { Markdown } from "../components/Markdown";
 import { SeverityTag, StatusTag, VerdictTag } from "../components/labels";
 import { ProvenancePanel } from "../components/ProvenancePanel";
+import { useBreadcrumb } from "../context/BreadcrumbContext";
 import { useCan } from "../context/SessionContext";
 import { usePolling } from "../hooks/useApi";
-import { duration, pillarLabel, shortSha, when } from "../lib/format";
-import { ASSESSMENTS_PATH, pillarPath } from "../routes";
+import { duration, pillarLabel, repoLabel, shortSha, when } from "../lib/format";
+import { ASSESSMENTS_PATH, pillarPath, repositoryPath } from "../routes";
 import { artifactUrl, cancelAssessment, getAssessment, retryAssessment } from "../services/factory";
 import type { AssessmentDetail, Judgement, RemediationStep, Severity } from "../types/api";
 
@@ -70,6 +71,18 @@ export function AssessmentDetailView() {
     3000,
     [assessmentId],
   );
+
+  // Names this run and the repository it belongs to in the breadcrumb. The repository crumb is
+  // the one that matters: it leads back to that repository's other runs, which is the reason
+  // anyone arrives here twice. Called before the early returns below, as a hook must be.
+  const repository = data?.repository;
+  useBreadcrumb({
+    label: data?.assessment.commit_sha
+      ? shortSha(data.assessment.commit_sha)
+      : assessmentId.slice(0, 8),
+    parentLabel: repository ? repoLabel(repository) : undefined,
+    parentPath: repository ? repositoryPath(repository.id) : undefined,
+  });
 
   if (loading && !data) return <Page><Loading rows={8} label="Loading assessment" /></Page>;
   if (error && !data) {

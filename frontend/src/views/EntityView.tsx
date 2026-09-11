@@ -30,6 +30,7 @@ import { Link, useParams } from "react-router-dom";
 import { CopyButton } from "../components/CopyButton";
 import { ErrorBanner, Loading, Page, SectionHeading } from "../components/Feedback";
 import { Markdown } from "../components/Markdown";
+import { useBreadcrumb } from "../context/BreadcrumbContext";
 import { useApi } from "../hooks/useApi";
 import { CONTRACT_PATH } from "../routes";
 import { getIndex, getSchema } from "../services/contracts";
@@ -62,6 +63,8 @@ export function EntityView() {
     [entity, version],
   );
   const { data, loading, error } = useApi(loader, [entity, version]);
+
+  useBreadcrumb({ label: data?.title ?? entity });
 
   if (!version || (loading && !data)) return <Page><Loading rows={10} /></Page>;
   if (error) {

@@ -32,6 +32,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EmptyState, ErrorBanner, Loading, Page, SectionHeading } from "../components/Feedback";
 import { StatusTag } from "../components/labels";
 import { StartAssessmentPanel } from "../components/StartAssessmentPanel";
+import { useBreadcrumb } from "../context/BreadcrumbContext";
 import { useCan } from "../context/SessionContext";
 import { useApi } from "../hooks/useApi";
 import { duration, repoLabel, shortSha, when } from "../lib/format";
@@ -48,6 +49,10 @@ export function RepositoryDetailView() {
     [repositoryId],
   );
   const { data, loading, error } = useApi(loader, [repositoryId]);
+
+  // The URL carries a UUID, so the breadcrumb has to be told the name. Before the early returns:
+  // hooks run on every render or none.
+  useBreadcrumb({ label: data ? repoLabel(data.repository) : undefined });
 
   if (loading && !data) return <Page><Loading rows={6} /></Page>;
   if (error) {

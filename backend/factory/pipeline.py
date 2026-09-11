@@ -691,8 +691,13 @@ def summarize_for_api(assessment_id: str) -> dict[str, Any]:
         return {}
     passes = repo.completed_passes(assessment_id)
     findings = repo.list_findings(assessment_id)
+    repository = repo.get_repository(assessment.repository_id)
     return {
         "assessment": assessment.to_json(),
+        # The run carries only a repository id, which is a UUID and tells a reader nothing. The
+        # detail view is the deepest page in the application and had no way to name what it was
+        # looking at, or to offer a way back to the rest of that repository's history.
+        "repository": repository.to_json() if repository else None,
         "progress": progress_for(assessment).to_json(),
         "pass_states": repo.pass_states(assessment_id),
         "architecture": passes.get(PASS_ARCHITECTURE),

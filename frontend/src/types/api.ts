@@ -214,6 +214,8 @@ export interface AssessmentList extends Envelope {
 
 export interface AssessmentDetail extends Envelope {
   assessment: Assessment;
+  /** The repository this run assessed. Null only if it was deleted after the run. */
+  repository: Repository | null;
   progress: Progress;
   pass_states: Record<string, string>;
   architecture: Architecture | null;

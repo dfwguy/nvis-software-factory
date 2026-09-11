@@ -219,16 +219,54 @@ export function routeFor(pathname: string): RouteDef | undefined {
   )[0];
 }
 
+/**
+ * The list a detail view was reached from.
+ *
+ * Read by the sidebar highlight and by the breadcrumb, which is the point: the two disagreeing
+ * about where you are is how a page ends up highlighted under one heading while offering a way
+ * back to another.
+ */
+const PARENT_VIEWS: Partial<Record<ViewId, ViewId>> = {
+  "repository-detail": "repositories",
+  "assessment-detail": "assessments",
+  "pillar-detail": "golden-path",
+  "entity-detail": "contract-explorer",
+  "crosswalk-detail": "crosswalks",
+};
+
 /** The nav entry to highlight for a path: the detail view's parent, or the route itself. */
 export function activeViewFor(pathname: string): ViewId | undefined {
   const route = routeFor(pathname);
   if (!route) return undefined;
-  const parents: Partial<Record<ViewId, ViewId>> = {
-    "repository-detail": "repositories",
-    "assessment-detail": "assessments",
-    "pillar-detail": "golden-path",
-    "entity-detail": "contract-explorer",
-    "crosswalk-detail": "crosswalks",
-  };
-  return parents[route.viewId] ?? route.viewId;
+  return PARENT_VIEWS[route.viewId] ?? route.viewId;
+}
+
+export interface Crumb {
+  label: string;
+  /** Absent on the last crumb, which is the page being looked at rather than a way out of it. */
+  path?: string;
+}
+
+/**
+ * The trail from a navigable list down to the page at *pathname*.
+ *
+ * Built from the route table rather than from browser history. History would be a record of how
+ * this page was reached, which sounds better until a reload empties it, or a shared link arrives
+ * with none, and the trail is then either wrong or missing on exactly the pages that are deep
+ * enough to need it. The route table is the same for a click, a reload and a pasted URL.
+ *
+ * A top-level page returns a single crumb. Rendering that is the caller's decision.
+ */
+export function breadcrumbFor(pathname: string): Crumb[] {
+  const route = routeFor(pathname);
+  if (!route) return [];
+
+  const trail: Crumb[] = [];
+  const parentId = PARENT_VIEWS[route.viewId];
+  if (parentId) {
+    const parent = ROUTES.find((candidate) => candidate.viewId === parentId);
+    if (parent) trail.push({ label: parent.label, path: parent.path });
+  }
+  trail.push({ label: route.label });
+  return trail;
 }

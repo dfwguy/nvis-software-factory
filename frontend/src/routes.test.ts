@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activeViewFor,
+  breadcrumbFor,
   crosswalkPath,
   entityPath,
   NAV_GROUPS,
@@ -51,6 +52,33 @@ describe("navigation highlighting", () => {
     expect(activeViewFor("/golden-path/data-security")).toBe("golden-path");
     expect(activeViewFor("/contract/entity/resource")).toBe("contract-explorer");
     expect(activeViewFor("/contract/crosswalk/redfish")).toBe("crosswalks");
+  });
+});
+
+describe("the breadcrumb trail", () => {
+  it("is a single crumb on a top-level page", () => {
+    expect(breadcrumbFor("/repositories")).toEqual([{ label: "Repositories" }]);
+  });
+
+  it("puts the list first and the page last, with only the list clickable", () => {
+    expect(breadcrumbFor("/assessments/abc123")).toEqual([
+      { label: "Assessments", path: "/assessments" },
+      { label: "Assessment" },
+    ]);
+  });
+
+  it("points the crumb at the list, never at the pattern the route was declared with", () => {
+    // `/golden-path/:pillarId` in a href is a dead link. The ancestor is always a real path
+    // because only parameterless list routes are ever ancestors.
+    for (const path of ["/golden-path/durability", "/contract/entity/rack", "/repositories/x"]) {
+      for (const crumb of breadcrumbFor(path)) {
+        expect(crumb.path ?? "").not.toContain(":");
+      }
+    }
+  });
+
+  it("is empty for a path with no route, so the toolbar renders nothing", () => {
+    expect(breadcrumbFor("/nonsense")).toEqual([]);
   });
 });
 
