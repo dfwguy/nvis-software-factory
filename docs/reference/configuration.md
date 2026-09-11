@@ -41,7 +41,7 @@ A setting marked secret may come from an environment variable or a mounted secre
 | `api_key` | `NVSF_LLM_API_KEY` | `str` | _(secret)_ | no | Bearer token for the endpoint. Environment or mounted secret file only. |
 | `base_url` | `NVSF_LLM_BASE_URL` | `str` | _(none)_ | yes | OpenAI-compatible endpoint, e.g. an internal NIM deployment. The application refuses to start without it: reasoning is a required pipeline stage and there is deliberately no degraded mode. |
 | `evidence_budget_chars` | `NVSF_LLM_EVIDENCE_BUDGET_CHARS` | `int` | `120000` | no | Ceiling on serialized evidence per reasoning pass. Above this the evidence is summarized by map-reduce rather than truncated, so nothing is silently dropped. |
-| `max_output_tokens` | `NVSF_LLM_MAX_OUTPUT_TOKENS` | `int` | `4096` | no | Upper bound on a single completion. |
+| `max_output_tokens` | `NVSF_LLM_MAX_OUTPUT_TOKENS` | `int` | `8192` | no | Upper bound on a single completion. The remediation pass is the tallest: it returns three buckets of steps, each with a rationale, the files involved and a verification, so a repository with many findings genuinely needs the room. At 4096 it was cut off mid-string and the run failed on unparseable JSON. |
 | `max_retries` | `NVSF_LLM_MAX_RETRIES` | `int` | `3` | no | Bounded retries with exponential backoff, on transport errors and 429/5xx only. |
 | `model` | `NVSF_LLM_MODEL` | `str` | _(none)_ | yes | Model identifier passed to the endpoint. Recorded with every assessment, so changing it makes previous results reproducible rather than silently stale. |
 | `temperature` | `NVSF_LLM_TEMPERATURE` | `float` | `0.2` | no | Low by default: this is analysis, not prose generation. Recorded per call. |
