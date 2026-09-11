@@ -54,10 +54,14 @@ export function CrosswalksView() {
       <SectionHeading
         title="Crosswalks"
         detail={
+          /* Defined before the numbers, because the page is unreadable to anyone who assumes a
+             crosswalk is the model rather than the phrasebook between the model and one system. */
           <>
-            {systems.length} systems mapped against NRM{" "}
+            A crosswalk is a translation table between NRM and one system you already run: which
+            field corresponds to which, which way a value may travel, and which side is right when
+            they disagree. {systems.length} systems, against NRM{" "}
             <span className="nvsf-code">{data.nrm_version}</span>. If your tool already speaks one
-            of these, map through it rather than inventing a mapping.
+            of these, go through it rather than inventing your own.
           </>
         }
       />

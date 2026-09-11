@@ -12,6 +12,26 @@ contracts/
 
 Fetch it at `/api/contracts/index.json`, or point an agent at `/api/contracts/agent-pack.md`.
 
+## Two artifacts, not one
+
+Almost every confusing conversation about this directory comes from treating these as one thing.
+
+**The model** (`nrm/`) is the vocabulary: seven entities for describing racks, nodes, switches,
+transceivers, cables and coolant loops, so that two tools can refer to the same rack and know it
+is the same rack. This is what a team adopts.
+
+**A crosswalk** (`crosswalk/`) is a translation table for exactly one external system. It states
+which NRM field corresponds to which of that system's fields, which direction a value may travel,
+what the system cannot carry at all, and which side is right when the two disagree. There is one
+per system — Nautobot, Redfish, UFM, DCGM, `bcm-netautogen`, CycloneDX — and they are data, not
+prose, so they are tested. This is what you read when you already run one of those systems.
+
+So: the model is the shared language, and a crosswalk is the phrasebook between it and one system
+you already have. A crosswalk is also not the
+[Mapping Assistant](../docs/how-to/map-your-export-to-the-nvis-resource-model.md), which helps you
+write a transform for *your own* tool's export — a crosswalk is published and normative, a
+transform is yours.
+
 ## Why this exists
 
 Each team can build its own tools — that is not the problem and it is not going to change. The

@@ -164,7 +164,20 @@ def list_crosswalks():
         report = crosswalk_module.coverage(_version())
     except loader.ContractError as error:
         return fail(str(error), status=404, reason="unknown-version")
-    return ok(**report)
+    # Defined in the payload, not only in the documentation. This endpoint and the agent pack are
+    # where a new integrator or an agent meets the word "crosswalk" for the first time, and it is
+    # a term of art -- readers reasonably assume it means the model itself, which is the one
+    # confusion that makes the coverage numbers below unreadable.
+    return ok(
+        what_a_crosswalk_is=(
+            "A translation table between NRM and one external system: which NRM field "
+            "corresponds to which of that system's fields, which direction a value may travel, "
+            "what the system cannot carry, and which side is authoritative when they disagree. "
+            "NRM itself -- the seven-entity model these map onto -- is at /api/contracts/"
+            "index.json."
+        ),
+        **report,
+    )
 
 
 @bp.route("/crosswalk/<system>", methods=["GET"])

@@ -12,7 +12,9 @@ This page is generated from `contracts/crosswalk/` by `bin/gen-docs-reference.py
 next build, and CI fails if the two disagree — change the source.
 :::
 
-A crosswalk states how one external system's model maps onto NRM, in which direction, and what it cannot carry. Each one is validated against both its own schema and the NRM schemas at application startup.
+**NRM** is the model: seven entities for describing racks, nodes, switches, cables and coolant loops. **A crosswalk** is a translation table between that model and one external system you already run. It states which NRM field corresponds to which of the system's fields, which direction a value may travel, what the system cannot carry, and which side is authoritative where the two disagree.
+
+One crosswalk per system, and they are data rather than prose: each is validated against both its own schema and the NRM schemas at application startup, so a crosswalk naming a field the contract no longer has stops the application from booting. That is why the gap counts below can be trusted.
 
 ## Systems
 
