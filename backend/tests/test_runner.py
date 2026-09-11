@@ -168,6 +168,55 @@ def test_recover_orphans_requeues_a_run_stranded_by_a_restart(runner, monkeypatc
     )
 
 
+def test_a_run_already_owned_by_another_process_is_not_started_twice(runner, monkeypatch):
+    """The duplicate every worker used to be capable of starting.
+
+    ``_futures`` is this process's dictionary, so it cannot see a run owned by a sibling worker.
+    Holding the file lock here is what that sibling looks like from the outside. Starting anyway
+    would repeat all eleven model calls and race the first copy on the findings write.
+    """
+    from factory import runlock
+    from store import repo
+
+    record = repo.create_assessment(_repository().id, created_by="tester", ref="main")
+    calls = []
+    monkeypatch.setattr("factory.pipeline.run", calls.append)
+
+    with runlock.hold(record.id) as owned:
+        assert owned, "the test must be the one holding it"
+        runner._guarded(record.id)
+
+    assert calls == [], "the pipeline ran despite another process owning the run"
+    assert repo.get_assessment(record.id).failure_reason is None, (
+        "stepping aside is not a failure -- the run is proceeding, just not here"
+    )
+
+
+def test_recovery_leaves_a_run_that_is_alive_in_another_process_alone(runner, monkeypatch):
+    """Worker recycling, which reaches this without any restart at all.
+
+    A recycled worker re-imports the composition root and recovers, while its siblings keep
+    serving. A healthy run in one of them is non-terminal, so it looks exactly like an orphan --
+    and resetting it to ``queued`` would rewind the progress of a run that is still going.
+    """
+    from factory import runlock
+    from store import repo
+    from store.models import Status
+
+    record = repo.create_assessment(_repository().id, created_by="tester", ref="main")
+    repo.set_status(record.id, Status.REASONING)
+    monkeypatch.setattr(runner, "submit", lambda _id: None)
+
+    with runlock.hold(record.id) as owned:
+        assert owned
+        recovered = runner.recover_orphans()
+
+    assert record.id not in recovered
+    assert repo.get_assessment(record.id).status is Status.REASONING, (
+        "a live run was rewound to queued by another worker's recovery"
+    )
+
+
 def test_recover_orphans_leaves_finished_runs_alone(runner, monkeypatch):
     from store import repo
     from store.models import Status

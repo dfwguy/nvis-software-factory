@@ -43,7 +43,7 @@ import settings
 from store import repo
 from store.models import Status
 
-from factory import pipeline
+from factory import pipeline, runlock
 
 _logger = logging.getLogger("nvsf.factory.runner")
 
@@ -101,9 +101,21 @@ def _guarded(assessment_id: str) -> None:
     layer exists for the failures that happen outside that handling — an import error, a database
     connection that cannot be opened, a MemoryError. Without it, such a run would sit in
     ``queued`` forever and the UI would show a spinner with no explanation.
+
+    The run lock is taken here rather than in :func:`submit` because it must be held for the whole
+    run, and :func:`submit` returns as soon as the work is queued. Stepping aside when another
+    process holds it is not a failure and must not be recorded as one: the run is proceeding, just
+    not here.
     """
     try:
-        pipeline.run(assessment_id)
+        with runlock.hold(assessment_id) as owned:
+            if not owned:
+                _logger.info(
+                    "runner: %s is already running in another process; not starting a second",
+                    assessment_id,
+                )
+                return
+            pipeline.run(assessment_id)
     except BaseException as error:
         _logger.exception("runner: %s died outside the pipeline's own handling", assessment_id)
         try:
@@ -141,6 +153,15 @@ def recover_orphans() -> list[str]:
 
     for assessment in active:
         try:
+            # Not every non-terminal run is an orphan. A recycled worker re-imports this module
+            # while its siblings are still serving, so a run that is alive in another process
+            # would otherwise be "recovered" -- its status reset to `queued` underneath it, and a
+            # second copy of it started.
+            if runlock.held_elsewhere(assessment.id):
+                _logger.info(
+                    "runner: %s is running in another process, leaving it alone", assessment.id,
+                )
+                continue
             if assessment.status is not Status.QUEUED:
                 repo.set_status(assessment.id, Status.QUEUED)
             submit(assessment.id)
